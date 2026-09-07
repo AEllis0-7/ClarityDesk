@@ -27,6 +27,8 @@ import type {
   InvestigationStoreApi,
   McpKeyRecord,
   McpKeyStoreApi,
+  RoutingLogApi,
+  RoutingRecord,
   SessionsStoreApi,
   Source,
   SourceStoreApi,
@@ -85,6 +87,14 @@ export class DurableState {
         updated_at INTEGER NOT NULL,
         PRIMARY KEY (tenant_slug, agent_id, resource_id)
       );
+      CREATE TABLE IF NOT EXISTS routing_records (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        tenant_slug TEXT NOT NULL,
+        record TEXT NOT NULL,
+        created_at INTEGER NOT NULL
+      );
+      CREATE INDEX IF NOT EXISTS routing_records_by_tenant
+        ON routing_records (tenant_slug, id);
     `)
   }
 
@@ -130,6 +140,42 @@ export class DurableState {
         return []
       }
     })
+  }
+
+  /** Append one routing decision and trim the tenant's log to `keep` rows. */
+  appendRouting(slug: string, record: unknown, keep: number): void {
+    this.sql.exec(
+      'INSERT INTO routing_records (tenant_slug, record, created_at) VALUES (?, ?, ?)',
+      slug,
+      JSON.stringify(record),
+      Date.now(),
+    )
+    this.sql.exec(
+      `DELETE FROM routing_records WHERE tenant_slug = ? AND id NOT IN (
+         SELECT id FROM routing_records WHERE tenant_slug = ? ORDER BY id DESC LIMIT ?
+       )`,
+      slug,
+      slug,
+      keep,
+    )
+  }
+
+  /** The tenant's routing decisions, newest first, at most `limit`. */
+  routingRecords<T>(slug: string, limit: number): T[] {
+    const rows = this.sql.exec<{ record: string }>(
+      'SELECT record FROM routing_records WHERE tenant_slug = ? ORDER BY id DESC LIMIT ?',
+      slug,
+      limit,
+    ).toArray()
+    const out: T[] = []
+    for (const row of rows) {
+      try {
+        out.push(JSON.parse(row.record) as T)
+      } catch {
+        // a torn row is skipped, as the file-backed log skips a torn line
+      }
+    }
+    return out
   }
 
   enrichment(slug: string, agentId: string, resourceId: string): Enrichment | undefined {
@@ -1026,6 +1072,41 @@ export class DurableMcpKeyStore implements McpKeyStoreApi {
   }
 }
 
+/**
+ * Intent-routing decisions per tenant in their own table: one append and
+ * one trim per decision, never a rewrite of the whole history.
+ */
+export class DurableRoutingLog implements RoutingLogApi {
+  /** Rows kept per tenant: the evaluation set the admin Routing panel reads. */
+  static readonly KEEP = 5_000
+
+  constructor(
+    private readonly state: DurableState,
+    private readonly keep: number = DurableRoutingLog.KEEP,
+  ) {}
+
+  record(slug: string, entry: RoutingRecord): void {
+    this.state.appendRouting(slug, entry, this.keep)
+  }
+
+  recent(slug: string, limit = 50): RoutingRecord[] {
+    return this.state.routingRecords<RoutingRecord>(slug, limit)
+  }
+
+  summary(
+    slug: string,
+  ): { total: number; byIntent: Record<string, number>; byStage: Record<string, number> } {
+    const byIntent: Record<string, number> = {}
+    const byStage: Record<string, number> = {}
+    const rows = this.state.routingRecords<RoutingRecord>(slug, this.keep)
+    for (const r of rows) {
+      byIntent[r.intent] = (byIntent[r.intent] ?? 0) + 1
+      byStage[r.stage] = (byStage[r.stage] ?? 0) + 1
+    }
+    return { total: rows.length, byIntent, byStage }
+  }
+}
+
 export interface DurableStores {
   bindings: DurableBindingStore
   tenants: DurableTenantStore
@@ -1039,6 +1120,7 @@ export interface DurableStores {
   kgProposals: DurableKgProposalStore
   branding: DurableBrandingStore
   mcpKeys: DurableMcpKeyStore
+  routing: DurableRoutingLog
 }
 
 export function durableStores(
@@ -1058,5 +1140,6 @@ export function durableStores(
     kgProposals: new DurableKgProposalStore(state),
     branding: new DurableBrandingStore(state),
     mcpKeys: new DurableMcpKeyStore(state),
+    routing: new DurableRoutingLog(state),
   }
 }
