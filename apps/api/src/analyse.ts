@@ -76,6 +76,42 @@ interface AnalysisDesign {
 const slugify = (raw: string) =>
   raw.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 40)
 
+/**
+ * The taxonomy design prompt. A tenant with an analysis brief gets its
+ * reader and its organising principle stated before the design rules, so a
+ * sales-floor portal is designed around customer situations rather than
+ * around whichever makers dominate the corpus; without one the generic
+ * research-portal framing applies.
+ */
+export function analysisPrompt(
+  config: Pick<TenantConfig, 'analysis' | 'branding'>,
+  corpus: { total: number; sampleSize: number; sampled: boolean; inventory: string },
+): string {
+  const brief = config.analysis?.brief.trim()
+  const audience = brief
+    ? `You are configuring ${config.branding.productName}, a portal over this knowledge box. ` +
+      `${brief}\n\n`
+    : `You are configuring a research portal for this knowledge box. `
+  const questionsFor = brief
+    ? 'its readers would genuinely ask'
+    : 'a researcher would genuinely ask'
+  return audience +
+    `Here is ` +
+    (corpus.sampled
+      ? `a representative sample of ${corpus.sampleSize} of its ${corpus.total} resources:`
+      : `the complete inventory of its ${corpus.total} resources:`) +
+    `\n\n${corpus.inventory}\n\n` +
+    `Design the portal configuration: (1) 4 to 8 topics that partition this corpus well, each ` +
+    `with a kebab-case id, a short label in Australian English and a one-sentence description ` +
+    `of what qualifies (the classifier's prompt); (2) 3 to 5 "kinds", each with a description - a ` +
+    `second, orthogonal way of classifying the same resources (for example document genre or ` +
+    `research approach), also with kebab-case ids; (3) for EVERY numbered resource above, an ` +
+    `assignment of exactly one topicId and one kindId; (4) 6 suggested questions ${questionsFor} ` +
+    `of this corpus; (5) a short search placeholder listing 3 or 4 corpus ` +
+    `themes, e.g. "Search x, y, z…". Use only ids you defined. Cover every resource number ` +
+    `from 1 to ${corpus.sampleSize}.`
+}
+
 export async function* analyseTenant(
   management: AragProvider,
   tenants: TenantStoreApi,
@@ -105,20 +141,12 @@ export async function* analyseTenant(
   const line = (r: { title: string; summary: string }, i: number) =>
     `${i + 1}. ${r.title} - ${r.summary.slice(0, 180)}`
   const { sample, sampled, inventory } = sampleInventory(resources, line, INVENTORY_BUDGET)
-  const prompt = `You are configuring a research portal for this knowledge box. Here is ` +
-    (sampled
-      ? `a representative sample of ${sample.length} of its ${resources.length} resources:`
-      : `the complete inventory of its ${resources.length} resources:`) +
-    `\n\n${inventory}\n\n` +
-    `Design the portal configuration: (1) 4 to 8 topics that partition this corpus well, each ` +
-    `with a kebab-case id, a short label in Australian English and a one-sentence description ` +
-    `of what qualifies (the classifier's prompt); (2) 3 to 5 "kinds", each with a description - a ` +
-    `second, orthogonal way of classifying the same resources (for example document genre or ` +
-    `research approach), also with kebab-case ids; (3) for EVERY numbered resource above, an ` +
-    `assignment of exactly one topicId and one kindId; (4) 6 suggested questions a researcher ` +
-    `would genuinely ask of this corpus; (5) a short search placeholder listing 3 or 4 corpus ` +
-    `themes, e.g. "Search x, y, z…". Use only ids you defined. Cover every resource number ` +
-    `from 1 to ${sample.length}.`
+  const prompt = analysisPrompt(config, {
+    total: resources.length,
+    sampleSize: sample.length,
+    sampled,
+    inventory,
+  })
 
   yield { type: 'stage', label: 'Designing taxonomy, graph dimensions and questions' }
   const { object } = await management.askStructured(config, ANALYSE_SCHEMA, prompt)
@@ -165,8 +193,17 @@ export async function* analyseTenant(
         })),
       })
       yield { type: 'item', label: `Labelset '${id}' configured (${labels.length} labels)` }
-    } catch {
-      yield { type: 'item', label: `Labelset '${id}' already exists - reusing it` }
+    } catch (err) {
+      // Setting a labelset replaces it, so there is no "already exists"
+      // case to reuse; a failure here is a real one (a read-only key, most
+      // often) and every labelling call below would fail the same way.
+      yield {
+        type: 'error',
+        message: `Could not configure the '${id}' labelset on the knowledge box - ` +
+          `${err instanceof Error ? err.message.slice(0, 160) : 'request failed'}. ` +
+          `Check the box key has write (owner) rights, then run the analysis again.`,
+      }
+      return
     }
   }
 
@@ -212,11 +249,22 @@ export async function* analyseTenant(
     id: `${config.slug}-aq${i + 1}`,
     text,
   }))
+  // A curated portal keeps its own questions and placeholder: analysis
+  // rewrites what is in the box, not how the portal speaks to its reader.
+  const keepQuestions = Boolean(config.analysis?.keepQuestions)
   tenants.patch(config.slug, {
     topics,
-    suggestedQuestions: questions,
-    searchPlaceholder: design.searchPlaceholder?.trim() || config.searchPlaceholder,
+    ...(keepQuestions ? {} : {
+      suggestedQuestions: questions,
+      searchPlaceholder: design.searchPlaceholder?.trim() || config.searchPlaceholder,
+    }),
   })
+  if (keepQuestions) {
+    yield {
+      type: 'item',
+      label: "Kept the portal's own suggested questions and search placeholder",
+    }
+  }
   invalidate(config.slug)
 
   yield {

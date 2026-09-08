@@ -156,9 +156,10 @@ const marine: TenantConfig = TenantConfigSchema.parse({
 // reader is a salesperson with no optical training, talking to a customer at
 // the counter, so the answer prompt writes for the customer and every
 // suggested question is one a shopper actually asks. The corpus is lens-maker
-// white papers (Essilor, Hoya, Nikon, Zeiss and trade press), so no topic ids
-// are declared until a topic labelset exists on the box - an id that is not a
-// real label silently empties Explore.
+// white papers (Essilor, Hoya, Nikon, Zeiss and trade press). The topic ids
+// are the `topic` labels corpus analysis wrote to the box on 8 September 2026
+// under the analysis brief below - by customer situation, not by maker - and
+// must match the box: an id that is not a real label silently empties Explore.
 const CLARITYDESK_ASK_PROMPT = [
   'You are ClarityDesk, a plain-language guide that helps an in-store eyewear adviser explain ' +
   'lenses, coatings and frames to a customer standing at the counter. The adviser has no ' +
@@ -204,7 +205,16 @@ const claritydesk: TenantConfig = TenantConfigSchema.parse({
   },
   searchPlaceholder: 'Ask about a lens, coating or frame…',
   assessmentHeading: 'Product knowledge areas',
-  topics: [],
+  topics: [
+    { id: 'progressive-multifocal-lenses', label: 'Progressive and multifocal lenses' },
+    { id: 'single-vision-lenses', label: 'Everyday single vision lenses' },
+    { id: 'coatings-treatments', label: 'Coatings and treatments' },
+    { id: 'light-adaptive-sun-lenses', label: 'Light-adaptive and sun lenses' },
+    { id: 'driving-screen-office', label: 'Driving, screen and office work' },
+    { id: 'children-myopia-control', label: 'Children and myopia control' },
+    { id: 'thin-light-lenses', label: 'Thin and light lenses for strong prescriptions' },
+    { id: 'lens-manufacturing', label: 'How lenses are made' },
+  ],
   suggestedQuestions: [
     {
       id: 'claritydesk-q1',
@@ -245,6 +255,19 @@ const claritydesk: TenantConfig = TenantConfigSchema.parse({
     },
   },
   askPrompt: CLARITYDESK_ASK_PROMPT,
+  analysis: {
+    brief: 'The reader is an in-store eyewear adviser with no optical training, explaining a ' +
+      'lens, coating or frame to a customer at the counter. Organise the topics by the ' +
+      "customer's situation, never by maker or brand: for example progressive and multifocal " +
+      'lenses, everyday single vision lenses, coatings and treatments (anti-reflective, ' +
+      'scratch, UV), light-adaptive and sun lenses, driving, screen and office work, children ' +
+      'and myopia control, thin and light lenses for strong prescriptions, and background ' +
+      'reading on how lenses are made. A maker can appear in a description but not in a topic ' +
+      'label. Kinds should say what a document is to a salesperson (product fact sheet, ' +
+      "technical white paper, clinical study, buyer's guide, trade article). Every label " +
+      'must be something a shop assistant would say aloud.',
+    keepQuestions: true,
+  },
 })
 
 const tenantsBySlug: Record<string, TenantConfig> = {

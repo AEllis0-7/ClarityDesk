@@ -80,10 +80,30 @@ though it runs on one: every decision below follows from that reader.
 - The knowledge graph is still empty: relation extraction (Manage > Graph, propose then
   implement) has not been run. Search and the Library do not need it.
 
+## Tenant-aware analysis (8 September 2026, late)
+
+- `TenantConfig` gains an optional `analysis` block: a `brief` that states who reads the portal
+  and how topics should be organised, fed into the taxonomy design prompt ahead of the design
+  rules, and `keepQuestions`, which makes analysis rewrite the taxonomy without touching the
+  portal's own suggested questions or search placeholder. Portals without a brief get the old
+  research-portal framing unchanged.
+- Analysis no longer reports "Labelset already exists - reusing it" on a failure. Setting a
+  labelset replaces it on the platform, so there was never a conflict to reuse; a failure is
+  now an error event that names the labelset and the likely cause (a read-only key) and stops
+  before the labelling loop fails fifty-five times.
+- Re-run on the box with the ClarityDesk brief: 8 topics by customer situation, 5 kinds by what
+  a document is to a salesperson, 55 of 55 labelled, questions kept. Counts on the box:
+  children and myopia control 19, progressive and multifocal 10, coatings 6, single vision 5,
+  light-adaptive 5, driving/screen/office 5, lens manufacturing 5, thin and light lenses 0. The
+  ids are now in `tenants.ts` and the data-file override is gone.
+- "Thin and light lenses for strong prescriptions" has no documents. The Zeiss ClearView paper
+  answers the question but was filed under single vision. Either merge the topic away or source
+  a high-index material guide for it.
+
 ## Next steps, in order
 
-1. **Decide the taxonomy** (customer situations, not makers), apply it on the box, and then
-   copy the topic ids into the tenant's `topics` in code and drop the override.
+1. **Fill or fold the empty topic.** Source one or two high-index or lens-material guides, or
+   merge "thin and light" into "everyday single vision" and re-run analysis.
 2. **Sales-floor home page.** Replace the research hero ("What would you like to explore?") with a
    counter-first layout: the ask box, the eight questions grouped by situation (new to
    progressives, screen work, driving, strong prescription), and the product families in the box.
