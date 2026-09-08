@@ -33,6 +33,13 @@ though it runs on one: every decision below follows from that reader.
   wrong message to put in front of a salesperson.
 - The home page shows "Nothing to browse yet" because the box has no topic labelset, and
   citations show raw filenames because the enrichment agents have not run.
+- The research trust layer still speaks in its own register. On "Which lenses are thinnest for
+  a strong prescription?" the answer was right (Zeiss ClearView, up to 13% thinner) but the
+  portal appended "*Denominators: 8%, 13% are stated without a denominator*", and every answer
+  carries the "one sentence carries no citation" note because the "Try asking:" line is not a
+  claim. Both come from `variantPreamble` and the answer audit in `apps/web/src/lib`, which
+  were written for clinical figures. ClarityDesk needs a tenant-level way to turn the
+  denominator rule off and to exempt the closing line from the audit.
 
 ## Next steps, in order
 
