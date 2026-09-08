@@ -63,11 +63,27 @@ though it runs on one: every decision below follows from that reader.
   does it take to get used to progressive lenses?": retrieval pulled myopia-management papers
   and the answer was one statistic. Retrieval tuning (intents, entity terms) is the next lever.
 
+## Analysis re-run with an owner key (8 September 2026, evening)
+
+- The box token was replaced with an owner-role key (write probe answers 404, as a writer
+  should) and analysis completed: `topic` and `kind` labelsets created on the box, 55 of 55
+  resources labelled, no errors. The Library topic filters now carry real counts and the home
+  page browses by topic.
+- **The generated taxonomy is organised by maker, not by customer need**: `zeiss-smartlife`
+  (8), `zeiss-myopia` (11), `zeiss-technology` (7), `hoya-technology` (4),
+  `essilor-innovations` (14), `transitions-and-others` (11). That is what the corpus inventory
+  looks like to a research-portal prompt. A sales adviser thinks in situations - progressives,
+  coatings, driving, screen work, children's myopia, thin lenses - so the taxonomy should be
+  redesigned around those before it is baked into `tenants.ts`. Two routes: edit the labels in
+  Manage > Taxonomy and rebuild the labeller, or give `analyse.ts` a tenant-aware design prompt.
+  Until then the topics stay as an override in `data/tenants.json`.
+- The knowledge graph is still empty: relation extraction (Manage > Graph, propose then
+  implement) has not been run. Search and the Library do not need it.
+
 ## Next steps, in order
 
-1. **Replace the box token with an owner-role key**, then re-run analysis so the labelsets are
-   created and the 55 resources are labelled. Copy the resulting topic ids into the tenant's
-   `topics` in code and drop the override.
+1. **Decide the taxonomy** (customer situations, not makers), apply it on the box, and then
+   copy the topic ids into the tenant's `topics` in code and drop the override.
 2. **Sales-floor home page.** Replace the research hero ("What would you like to explore?") with a
    counter-first layout: the ask box, the eight questions grouped by situation (new to
    progressives, screen work, driving, strong prescription), and the product families in the box.
