@@ -414,6 +414,14 @@ export const TenantConfigSchema = z.object({
   }).optional(),
   /** Extraction routing rules (docs/EXTRACTION-LAB.md). Absent = platform default for everything. */
   extraction: ExtractionRulesSchema.optional(),
+  /**
+   * The portal's own system prompt for grounded answers, when its readers are
+   * not researchers (a sales-floor explainer writes for a customer, not an
+   * analyst). Absent means the default analyst prompt. A prompt saved in
+   * Manage > Behaviour still wins; clearing that field falls back to this,
+   * not to the analyst default.
+   */
+  askPrompt: z.string().min(1).optional(),
 })
 
 // ---------------------------------------------------------------------------

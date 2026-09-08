@@ -39,6 +39,7 @@ import type {
 } from '../../api/src/stores.ts'
 import {
   type NewTenantInput,
+  resolvePrompts,
   tenantConfig,
   type TenantPatch,
   type TenantStoreApi,
@@ -492,7 +493,7 @@ export class DurableTenantStore implements TenantStoreApi {
   }
 
   promptsFor(slug: string): { ask?: string; images?: boolean } {
-    return this.load().overrides[slug]?.prompts ?? {}
+    return resolvePrompts(this.load().overrides[slug]?.prompts, this.get(slug))
   }
 
   isCustom(slug: string): boolean {

@@ -152,14 +152,124 @@ const marine: TenantConfig = TenantConfigSchema.parse({
   relationTypes: ['studies', 'infects', 'located-in', 'funded-by', 'assesses'],
 })
 
+// ClarityDesk: a plain-language explainer for in-store eyewear advisers. The
+// reader is a salesperson with no optical training, talking to a customer at
+// the counter, so the answer prompt writes for the customer and every
+// suggested question is one a shopper actually asks. The corpus is lens-maker
+// white papers (Essilor, Hoya, Nikon, Zeiss and trade press), so no topic ids
+// are declared until a topic labelset exists on the box - an id that is not a
+// real label silently empties Explore.
+const CLARITYDESK_ASK_PROMPT = [
+  'You are ClarityDesk, a plain-language guide that helps an in-store eyewear adviser explain ' +
+  'lenses, coatings and frames to a customer standing at the counter. The adviser has no ' +
+  'technical background and will read your answer aloud or put it in their own words, so write ' +
+  'for the customer.',
+  'Always answer from the cited sources. Never refuse, and never write "Not enough data to ' +
+  'answer this", when any relevant source is present. For any part of the question the sources ' +
+  'do not cover, say plainly that the product guides do not cover it, and do not fill the gap ' +
+  'from general knowledge.',
+  'Lead with the answer in one or two everyday sentences, then explain in short paragraphs or ' +
+  'a short bulleted list. Keep the whole answer under about 180 words unless the question asks ' +
+  'for a comparison.',
+  'Use everyday words. When a technical term is unavoidable, give the plain description first ' +
+  'and the term in brackets the first time, for example "the age-related change that makes ' +
+  'close-up reading harder (presbyopia)". Explain what a feature means for the customer\'s day ' +
+  '- driving at night, using a phone, working at a screen, playing sport, thinner and lighter ' +
+  'lenses - rather than how it is engineered.',
+  'Keep numbers simple: round percentages, say "up to" when the source does, and always name ' +
+  'the maker a claim comes from ("Zeiss says ..."). Do not compare makers unless the question ' +
+  'asks for it, and never invent a comparison the sources do not make.',
+  'Never recommend a prescription, diagnose an eye condition or give medical advice. If the ' +
+  "question needs an eye test or an optometrist's judgement, say so in one sentence.",
+  'Cite at claim level: after each factual claim add a bracketed marker like [1]; the ' +
+  'application assigns the real citation numbers itself. Refer to the material as "the product ' +
+  'guides" or "the maker\'s information", never as "the context".',
+  'Finish with one line the adviser can use next, starting "Try asking:", with a good ' +
+  'follow-up question for the customer, such as how much time they spend on screens.',
+  'Australian English, no em dashes.',
+].join(' ')
+
+const claritydesk: TenantConfig = TenantConfigSchema.parse({
+  slug: 'claritydesk',
+  branding: {
+    productName: 'ClarityDesk',
+    organisation: 'ClarityDesk',
+    tagline: 'Plain answers about lenses and frames, at the counter',
+    colours: {
+      primary: '#1f3a5f',
+      accent: '#4fb3bf',
+      heroFrom: '#16304d',
+      heroTo: '#1f4a6b',
+    },
+  },
+  searchPlaceholder: 'Ask about a lens, coating or frame…',
+  assessmentHeading: 'Product knowledge areas',
+  topics: [],
+  suggestedQuestions: [
+    {
+      id: 'claritydesk-q1',
+      text: 'What is the difference between single vision and progressive lenses?',
+    },
+    { id: 'claritydesk-q2', text: 'Do I really need an anti-reflective coating?' },
+    { id: 'claritydesk-q3', text: 'Which lenses are thinnest for a strong prescription?' },
+    {
+      id: 'claritydesk-q4',
+      text: 'How long does it take to get used to progressive lenses?',
+    },
+    {
+      id: 'claritydesk-q5',
+      text: 'Are blue light lenses worth it if I work at a screen all day?',
+    },
+    { id: 'claritydesk-q6', text: 'What do light-adaptive (photochromic) lenses actually do?' },
+    { id: 'claritydesk-q7', text: 'What lenses are best for driving at night?' },
+    { id: 'claritydesk-q8', text: 'Why does a personalised lens cost more than a standard one?' },
+  ],
+  entityTypes: [
+    { id: 'lens-maker', label: 'Lens maker', colour: '#4fb3bf' },
+    { id: 'lens-design', label: 'Lens design', colour: '#7cb342' },
+    { id: 'coating', label: 'Coating or treatment', colour: '#f6bf26' },
+    { id: 'material', label: 'Lens material', colour: '#e0863c' },
+    { id: 'wearer-need', label: 'Wearer need', colour: '#5e97f6' },
+  ],
+  relationTypes: ['made-by', 'designed-for', 'uses', 'improves', 'competes-with'],
+  regionalDiscovery: false,
+  copy: {
+    investigationExample: 'e.g. Which progressive lens suits a first-time wearer?',
+    generateExamples: {
+      comparison: 'e.g. Compare Zeiss SmartLife with Hoya progressive lenses',
+      briefing: 'e.g. Brief me on anti-reflective coatings',
+      timeline: 'e.g. Timeline of progressive lens design',
+      proscons: 'e.g. Pros and cons of high-index lenses',
+      faq: 'e.g. Common customer questions about light-adaptive lenses',
+      assessment: 'e.g. Quiz me on lens coatings',
+    },
+  },
+  askPrompt: CLARITYDESK_ASK_PROMPT,
+})
+
 const tenantsBySlug: Record<string, TenantConfig> = {
   marine,
   grains,
+  claritydesk,
 }
 
 export function tenantConfig(slug: string): TenantConfig | undefined {
   const config = tenantsBySlug[slug]
   return config ? withPlatformHostname(config) : undefined
+}
+
+/**
+ * The prompt settings an answer runs with: what an administrator saved in
+ * Manage > Behaviour, falling back to the tenant's own `askPrompt` for the
+ * system prompt. Clearing the saved prompt therefore returns a portal to its
+ * own default, not to the analyst prompt.
+ */
+export function resolvePrompts(
+  saved: { ask?: string; images?: boolean } | undefined,
+  config: TenantConfig | undefined,
+): { ask?: string; images?: boolean } {
+  const ask = saved?.ask?.trim() || config?.askPrompt
+  return { ...saved, ...(ask ? { ask } : {}) }
 }
 
 export function tenantSummaries(): TenantSummary[] {
@@ -236,7 +346,7 @@ export class TenantStore {
 
   /** App-side settings that never reach the public config payload. */
   promptsFor(slug: string): { ask?: string; images?: boolean } {
-    return this.overrides[slug]?.prompts ?? {}
+    return resolvePrompts(this.overrides[slug]?.prompts, this.get(slug))
   }
 
   isCustom(slug: string): boolean {
