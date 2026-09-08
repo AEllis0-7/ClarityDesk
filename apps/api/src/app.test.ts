@@ -163,6 +163,16 @@ describe('GET /api/tenants', () => {
 })
 
 describe('GET /api/t/:slug/config', () => {
+  it("keeps a portal's own answer prompt out of the public config", async () => {
+    const app = makeApp()
+    const response = await app.request('/api/t/claritydesk/config')
+
+    expect(response.status).toBe(200)
+    const body = await response.json() as Record<string, unknown>
+    expect(body.slug).toBe('claritydesk')
+    expect(body).not.toHaveProperty('askPrompt')
+  })
+
   it('parses with TenantConfigSchema for a known tenant', async () => {
     const app = makeApp()
     const response = await app.request('/api/t/marine/config')
@@ -858,9 +868,10 @@ describe('admin', () => {
   })
 
   it('returns a schema-valid overview with the passcode', async () => {
+    const tenants = freshTenants()
     const app = buildApp({
       provider: new StubProvider(),
-      tenants: freshTenants(),
+      tenants,
       adminPasscode: passcode,
     })
     const response = await app.request('/api/admin/overview', {
@@ -868,8 +879,11 @@ describe('admin', () => {
     })
 
     expect(response.status).toBe(200)
-    const rows = (await response.json()) as unknown[]
-    expect(rows.length).toBe(3)
+    const rows = (await response.json()) as Array<{ tenant: { slug: string } }>
+    // Every portal the store knows - the seeded ones and the fixture's - has a row.
+    expect(rows.map((row) => row.tenant.slug).sort()).toEqual(
+      tenants.list(true).map((tenant) => tenant.slug).sort(),
+    )
     for (const row of rows) AdminTenantOverviewSchema.parse(row)
   })
 
