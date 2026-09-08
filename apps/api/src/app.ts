@@ -1098,9 +1098,10 @@ export function buildApp(opts: BuildAppOptions): Hono {
   app.get('/api/t/:slug/config', (c) => {
     const config = tenant(c.req.param('slug'))
     if (!config) return c.json({ error: 'unknown_tenant' }, 404)
-    // The answer prompt is server-side behaviour, not portal presentation:
-    // it stays out of the public config like a saved Manage > Behaviour prompt.
-    const { askPrompt: _askPrompt, ...presentation } = config
+    // The answer prompt and the analysis brief are server-side behaviour,
+    // not portal presentation: they stay out of the public config like a
+    // saved Manage > Behaviour prompt.
+    const { askPrompt: _askPrompt, analysis: _analysis, ...presentation } = config
     return c.json(withBrandingUrls(presentation))
   })
 

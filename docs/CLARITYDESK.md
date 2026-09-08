@@ -63,11 +63,47 @@ though it runs on one: every decision below follows from that reader.
   does it take to get used to progressive lenses?": retrieval pulled myopia-management papers
   and the answer was one statistic. Retrieval tuning (intents, entity terms) is the next lever.
 
+## Analysis re-run with an owner key (8 September 2026, evening)
+
+- The box token was replaced with an owner-role key (write probe answers 404, as a writer
+  should) and analysis completed: `topic` and `kind` labelsets created on the box, 55 of 55
+  resources labelled, no errors. The Library topic filters now carry real counts and the home
+  page browses by topic.
+- **The generated taxonomy is organised by maker, not by customer need**: `zeiss-smartlife`
+  (8), `zeiss-myopia` (11), `zeiss-technology` (7), `hoya-technology` (4),
+  `essilor-innovations` (14), `transitions-and-others` (11). That is what the corpus inventory
+  looks like to a research-portal prompt. A sales adviser thinks in situations - progressives,
+  coatings, driving, screen work, children's myopia, thin lenses - so the taxonomy should be
+  redesigned around those before it is baked into `tenants.ts`. Two routes: edit the labels in
+  Manage > Taxonomy and rebuild the labeller, or give `analyse.ts` a tenant-aware design prompt.
+  Until then the topics stay as an override in `data/tenants.json`.
+- The knowledge graph is still empty: relation extraction (Manage > Graph, propose then
+  implement) has not been run. Search and the Library do not need it.
+
+## Tenant-aware analysis (8 September 2026, late)
+
+- `TenantConfig` gains an optional `analysis` block: a `brief` that states who reads the portal
+  and how topics should be organised, fed into the taxonomy design prompt ahead of the design
+  rules, and `keepQuestions`, which makes analysis rewrite the taxonomy without touching the
+  portal's own suggested questions or search placeholder. Portals without a brief get the old
+  research-portal framing unchanged.
+- Analysis no longer reports "Labelset already exists - reusing it" on a failure. Setting a
+  labelset replaces it on the platform, so there was never a conflict to reuse; a failure is
+  now an error event that names the labelset and the likely cause (a read-only key) and stops
+  before the labelling loop fails fifty-five times.
+- Re-run on the box with the ClarityDesk brief: 8 topics by customer situation, 5 kinds by what
+  a document is to a salesperson, 55 of 55 labelled, questions kept. Counts on the box:
+  children and myopia control 19, progressive and multifocal 10, coatings 6, single vision 5,
+  light-adaptive 5, driving/screen/office 5, lens manufacturing 5, thin and light lenses 0. The
+  ids are now in `tenants.ts` and the data-file override is gone.
+- "Thin and light lenses for strong prescriptions" has no documents. The Zeiss ClearView paper
+  answers the question but was filed under single vision. Either merge the topic away or source
+  a high-index material guide for it.
+
 ## Next steps, in order
 
-1. **Replace the box token with an owner-role key**, then re-run analysis so the labelsets are
-   created and the 55 resources are labelled. Copy the resulting topic ids into the tenant's
-   `topics` in code and drop the override.
+1. **Fill or fold the empty topic.** Source one or two high-index or lens-material guides, or
+   merge "thin and light" into "everyday single vision" and re-run analysis.
 2. **Sales-floor home page.** Replace the research hero ("What would you like to explore?") with a
    counter-first layout: the ask box, the eight questions grouped by situation (new to
    progressives, screen work, driving, strong prescription), and the product families in the box.

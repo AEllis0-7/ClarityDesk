@@ -422,6 +422,25 @@ export const TenantConfigSchema = z.object({
    * not to the analyst default.
    */
   askPrompt: z.string().min(1).optional(),
+  /**
+   * How corpus analysis should design this portal. Absent means the generic
+   * research-portal design: topics that partition the corpus however the
+   * model sees it, and researcher-style suggested questions.
+   */
+  analysis: z.object({
+    /**
+     * Who reads the portal and how the topics should be organised, fed to
+     * the taxonomy design prompt verbatim - a sales-floor portal asks for
+     * topics by customer situation rather than by maker.
+     */
+    brief: z.string().min(1),
+    /**
+     * Keep the portal's own suggested questions and search placeholder
+     * instead of replacing them with generated ones. A curated portal sets
+     * this so analysis rewrites the taxonomy without changing its voice.
+     */
+    keepQuestions: z.boolean().optional(),
+  }).optional(),
 })
 
 // ---------------------------------------------------------------------------

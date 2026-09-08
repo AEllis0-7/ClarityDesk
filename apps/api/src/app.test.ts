@@ -163,7 +163,7 @@ describe('GET /api/tenants', () => {
 })
 
 describe('GET /api/t/:slug/config', () => {
-  it("keeps a portal's own answer prompt out of the public config", async () => {
+  it("keeps a portal's own answer prompt and analysis brief out of the public config", async () => {
     const app = makeApp()
     const response = await app.request('/api/t/claritydesk/config')
 
@@ -171,6 +171,7 @@ describe('GET /api/t/:slug/config', () => {
     const body = await response.json() as Record<string, unknown>
     expect(body.slug).toBe('claritydesk')
     expect(body).not.toHaveProperty('askPrompt')
+    expect(body).not.toHaveProperty('analysis')
   })
 
   it('parses with TenantConfigSchema for a known tenant', async () => {

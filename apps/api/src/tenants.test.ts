@@ -32,12 +32,17 @@ describe('resolvePrompts', () => {
 })
 
 describe('ClarityDesk tenant', () => {
-  it('is a seeded portal with customer-phrased questions and no topic ids yet', () => {
+  it('is a seeded portal with customer-phrased questions and situation-based topics', () => {
     const store = new TenantStore({ TENANTS_PATH: `${Deno.makeTempDirSync()}/tenants.json` })
     const config = store.get('claritydesk')
     expect(config).toBeDefined()
     expect(store.isCustom('claritydesk')).toBe(false)
-    expect(config?.topics).toEqual([])
+    // The ids are the `topic` labels on the box; no maker names in a label.
+    expect(config?.topics.length).toBe(8)
+    for (const topic of config?.topics ?? []) {
+      expect(topic.label).not.toMatch(/zeiss|hoya|essilor|nikon|transitions/i)
+    }
+    expect(config?.analysis?.keepQuestions).toBe(true)
     expect(config?.suggestedQuestions.length).toBeGreaterThanOrEqual(6)
     for (const question of config?.suggestedQuestions ?? []) {
       expect(question.text.endsWith('?')).toBe(true)
