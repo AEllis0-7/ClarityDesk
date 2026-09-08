@@ -41,11 +41,33 @@ though it runs on one: every decision below follows from that reader.
   were written for clinical figures. ClarityDesk needs a tenant-level way to turn the
   denominator rule off and to exempt the closing line from the audit.
 
+## Enrichment run (8 September 2026, later the same day)
+
+- **Research-summary enrichment: done.** All 55 resources enriched, no errors. The Library and
+  every citation now show real titles and summaries ("HOYA VisuPro Advanced Focus Lenses for
+  Young Presbyopes", not a filename). The records live in the app-side enrichment store (local
+  `data/`, gitignored); a backup export is at `corpus/claritydesk-enrichments-2026-09-08.json`
+  outside the repo and can be re-imported through Manage > Enrichments.
+- **Corpus analysis: half done.** The design step worked (8 topics, 5 kinds, generated from a
+  sample of the corpus) and the topics are saved as a tenant override, but creating the
+  labelsets and labelling the resources all returned 403. The box token in `.env` is
+  read-only: a `PATCH` on a non-existent resource answers 403 where a writer key answers 404.
+  Analysis reports "Labelset already exists - reusing it" in that case because it treats any
+  creation error as a conflict; the box actually has no labelsets. The topic filters in the
+  Library therefore all show zero until a key with the owner role replaces the current one and
+  the labelling is re-run.
+- Analysis also overwrote the suggested questions and search placeholder with its own
+  researcher-style set; those overrides were removed from `data/tenants.json` so the seeded
+  customer questions show again. Re-running analysis will overwrite them again.
+- First answer after enrichment scored groundedness 5 of 5 but answer relevance 1 on "How long
+  does it take to get used to progressive lenses?": retrieval pulled myopia-management papers
+  and the answer was one statistic. Retrieval tuning (intents, entity terms) is the next lever.
+
 ## Next steps, in order
 
-1. **Run corpus analysis and the enrichment agents** on the box (Manage > Analyse). This produces
-   real titles, hooks and summaries for the 55 papers, a topic labelset the home page can browse,
-   and the graph entities. Then copy the resulting topic ids into the tenant's `topics`.
+1. **Replace the box token with an owner-role key**, then re-run analysis so the labelsets are
+   created and the 55 resources are labelled. Copy the resulting topic ids into the tenant's
+   `topics` in code and drop the override.
 2. **Sales-floor home page.** Replace the research hero ("What would you like to explore?") with a
    counter-first layout: the ask box, the eight questions grouped by situation (new to
    progressives, screen work, driving, strong prescription), and the product families in the box.
