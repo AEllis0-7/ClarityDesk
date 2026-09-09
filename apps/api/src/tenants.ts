@@ -192,16 +192,22 @@ const CLARITYDESK_ASK_PROMPT = [
 
 const claritydesk: TenantConfig = TenantConfigSchema.parse({
   slug: 'claritydesk',
+  // Scrivens' own identity: the logo blue, the site's 4px corners, and the
+  // closest Google face to its licensed Gibson. The four seeded colours are
+  // the same blues, so 'default' in Manage > Appearance stays on brand.
   branding: {
     productName: 'ClarityDesk',
-    organisation: 'ClarityDesk',
+    organisation: 'Scrivens Opticians & Hearing Care',
     tagline: 'Plain answers about lenses and frames, at the counter',
     colours: {
-      primary: '#1f3a5f',
-      accent: '#4fb3bf',
-      heroFrom: '#16304d',
-      heroTo: '#1f4a6b',
+      primary: '#003f81',
+      accent: '#1170c9',
+      heroFrom: '#003269',
+      heroTo: '#0a4f96',
     },
+    paletteId: 'scrivens',
+    typography: 'figtree',
+    shape: 'rounded',
   },
   searchPlaceholder: 'Ask about a lens, coating or frame…',
   assessmentHeading: 'Product knowledge areas',

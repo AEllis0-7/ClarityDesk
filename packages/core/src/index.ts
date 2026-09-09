@@ -12,6 +12,7 @@ export const FontPairingIdSchema = z.enum([
   'corben-montserrat',
   'bebas-heebo',
   'lexend-zilla',
+  'figtree',
 ])
 export type FontPairingId = z.infer<typeof FontPairingIdSchema>
 
@@ -186,6 +187,22 @@ export const FONT_PAIRINGS: Record<FontPairingId, FontPairing> = {
     },
     body: { family: 'Zilla Slab', weight: 400 },
     googleQuery: 'family=Lexend:wght@600;700&family=Zilla+Slab:wght@400;500;600;700',
+  },
+  // One face for headings and body: the open, geometric-humanist sans that
+  // sits closest to Canada Type's Gibson, the licensed face on scrivens.com
+  // that cannot be redistributed here.
+  figtree: {
+    id: 'figtree',
+    label: 'Figtree',
+    heading: {
+      family: 'Figtree',
+      weight: 600,
+      boldWeight: 700,
+      tracking: '-0.015em',
+      leading: '1.08',
+    },
+    body: { family: 'Figtree', weight: 400 },
+    googleQuery: 'family=Figtree:wght@400;500;600;700',
   },
 }
 
