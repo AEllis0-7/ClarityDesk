@@ -61,7 +61,14 @@ export const PaletteSchema = z.object({
 })
 export type Palette = z.infer<typeof PaletteSchema>
 
-export const PaletteIdSchema = z.enum(['fathom', 'canopy', 'damson', 'kiln', 'observatory'])
+export const PaletteIdSchema = z.enum([
+  'fathom',
+  'canopy',
+  'damson',
+  'kiln',
+  'observatory',
+  'scrivens',
+])
 export type PaletteId = z.infer<typeof PaletteIdSchema>
 
 /**
@@ -218,6 +225,42 @@ export const DEFAULT_PALETTES: Record<PaletteId, PaletteEntry> = {
       ink: '#f0eff9',
       ink2: '#d2d0e6',
       ink3: '#a5a3c4',
+    },
+  },
+  // The one palette here that IS a real organisation's identity, on purpose:
+  // ClarityDesk is built for Scrivens Opticians & Hearing Care. The brand
+  // blue is the logo's own (#004088 sampled from logo-scrivens.png; #003f81
+  // in the site's stylesheet), the wordmark's grey sets the ink-3 tone, and
+  // the site's 4px corners are the `rounded` shape. Accent and washes stay in
+  // the blue family so nothing reads as a second brand.
+  scrivens: {
+    id: 'scrivens',
+    label: 'Scrivens',
+    description: "Scrivens royal blue on white paper - the opticians' own identity.",
+    palette: {
+      mode: 'light',
+      brandSurface: '#003f81',
+      onBrandSurface: '#ffffff',
+      brandForeground: '#003f81',
+      // Sky blue, not the brand blue: the accent has to read against the
+      // navy nav band as well as on white, so it sits a step lighter with a
+      // navy on-colour, the way Fathom pairs azure with deep water.
+      accent: '#4ea1ff',
+      onAccent: '#062a52',
+      accentForeground: '#0b5cad',
+      focusRing: '#0b5cad',
+      accentWash: '#e9f0fa',
+      accentWashStrong: '#d4e2f5',
+      heroFrom: '#003269',
+      heroTo: '#0a4f96',
+      onHero: '#ffffff',
+      paper: '#f6f8fb',
+      surface: '#ffffff',
+      surface2: '#eef2f7',
+      line: '#d8dfe8',
+      ink: '#1b2430',
+      ink2: '#3f4a5a',
+      ink3: '#5f6b7a',
     },
   },
 }

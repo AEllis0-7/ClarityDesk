@@ -134,6 +134,28 @@ though it runs on one: every decision below follows from that reader.
   "one sentence carries no citation" footnote disappears from every ClarityDesk answer that
   ends properly. This is register-independent: it was wrong in the research register too.
 
+## Scrivens identity (9 September 2026)
+
+ClarityDesk is built for Scrivens Opticians & Hearing Care, so the portal wears their brand.
+scrivens.com sits behind a Cloudflare human check that blocks every automated route, so the
+brand was read from a Wayback Machine copy of the homepage (August 2024), its stylesheets, and
+the logo files: the wordmark is `#004088` blue (sampled from `logo-scrivens.png`; the stylesheet
+uses `#003f81`) over `#747474` grey, the typeface is Canada Type's Gibson served from Adobe
+Fonts, the corners are 4px, and the header is white with the blue logo.
+
+- **`scrivens` library palette** in `packages/core/src/palettes.ts`: brand blue `#003f81`, a
+  sky-blue accent `#4ea1ff` with a navy on-colour (the brand blue itself fails the 3:1 the
+  contract wants for the nav underline), link blue `#0b5cad`, a blue-tinted grey suite. Passes
+  the full WCAG contract. It is the only palette in the library that is a real organisation's
+  identity, and says so in its comment.
+- **`figtree` type pairing**: Gibson is licensed and cannot be redistributed; Figtree is the
+  closest open face (geometric-humanist, open apertures) and is used for headings and body.
+- ClarityDesk's branding: organisation "Scrivens Opticians & Hearing Care", palette `scrivens`,
+  typography `figtree`, shape `rounded`, and the four seeded colours set to the same blues so
+  "default" in Manage > Appearance stays on brand. The logo was uploaded through Manage >
+  Appearance on the local instance (it lives in `data/branding`, not the repo); production needs
+  the same upload.
+
 ## Next steps, in order
 
 1. **Confidence for non-experts - remaining.** The wording above is a first pass; watch real
