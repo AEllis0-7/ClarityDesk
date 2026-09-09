@@ -258,6 +258,23 @@ Fonts, the corners are 4px, and the header is white with the blue logo.
   list: asking about "Varilux XR versus SmartLife" must not answer SmartLife first. The clinical
   path keeps its own order, which its tests assert.
 
+## Counter mode (9 September 2026)
+
+- `?counter=1` puts the portal into the shape a tablet on a shop counter wants, and remembers it
+  in that browser: the whole rem-based interface steps up an eighth (18px root instead of 16px),
+  the ask box joins the header from tablet width instead of waiting for a desktop `lg`, and Help
+  and the account menu - both back-office controls - are gone, so a customer leaning over the
+  counter cannot reach administration.
+- It is a property of the device, not the portal, so it lives in the URL and in that browser's
+  storage rather than in `TenantConfig`: the tablet on the counter wants it and the same portal
+  in the back office does not.
+- `?counter=0` is the way back, and the footer carries a "Leave counter mode" link that points
+  at it, because a tablet has no keyboard to type a query string with and an adviser who needs
+  Manage has to be able to get to it.
+- The text step reuses the appearance system's own `--rp-text-scale` rather than a second
+  mechanism, so it composes with whatever text size the tenant already chose, and spacing
+  follows because the density dial is derived from rem.
+
 ## Next steps, in order
 
 1. **Confidence for non-experts - remaining.** The plain-register wording is a first pass; watch
@@ -288,11 +305,6 @@ Ordered roughly by value to the adviser at the counter over effort.
 - **Objection handling.** A curated set of the questions customers push back with ("Why is this
   twice the price of online?", "Will I get headaches?") with answers grounded in the guides and
   a line on what the guides do not claim. Suggested-question groups make this a content task.
-- **Store tablet layout.** The portal already scales down to 390px. A kiosk view with larger
-  type, the ask box pinned, and no admin chrome is a small appearance-system preset.
-- **Answer feedback from the floor.** The platform's `/feedback` endpoint takes a thumbs up or
-  down per answer. A two-button rating on each answer tells you which questions the guides answer
-  badly, which is the list of white papers to source next.
 - **Frame-side content.** The box is lens-only today. Frame material, fit and face-shape guides
   from the frame makers would let the same portal cover the second half of every sale.
 - **Multilingual answers.** The makers publish in several languages and the platform generates in

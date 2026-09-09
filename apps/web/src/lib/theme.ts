@@ -86,18 +86,42 @@ export function textScaleVars(scale: TextScaleId): Record<string, string> {
   }
 }
 
-/** Apply the tenant's text scale variables to the document root. */
-export function useTextScale(branding: Branding | undefined): void {
+/**
+ * How much bigger a counter tablet reads. The adviser is standing, the
+ * device is flat on a counter and further from the eye than a desk
+ * monitor, so the whole rem-based interface steps up together rather than
+ * a few headings being enlarged by hand.
+ */
+export const COUNTER_TEXT_SCALE = 1.125
+
+/**
+ * Apply the tenant's text scale variables to the document root, stepped up
+ * again when this device is set to counter mode.
+ */
+export function useTextScale(branding: Branding | undefined, counterMode = false): void {
   const scale = branding?.textScale ?? 'default'
   useEffect(() => {
     const root = document.documentElement
-    const vars = textScaleVars(scale)
+    const base = textScaleVars(scale)
+    // The tenant's own choice may be "default", which writes nothing at all;
+    // counter mode still has to have something to scale, so it starts from
+    // the same 100%/106.25% the stylesheet falls back to.
+    const mobile = Number.parseFloat(base['--rp-text-scale'] ?? '100%')
+    const desktop = Number.parseFloat(
+      base['--rp-text-scale-desktop'] ?? `${100 * DESKTOP_TEXT_SCALE_FACTOR}%`,
+    )
+    const vars = counterMode
+      ? {
+        '--rp-text-scale': `${mobile * COUNTER_TEXT_SCALE}%`,
+        '--rp-text-scale-desktop': `${desktop * COUNTER_TEXT_SCALE}%`,
+      }
+      : base
     for (const [property, value] of Object.entries(vars)) root.style.setProperty(property, value)
     return () => {
       root.style.removeProperty('--rp-text-scale')
       root.style.removeProperty('--rp-text-scale-desktop')
     }
-  }, [scale])
+  }, [scale, counterMode])
 }
 
 export function shapeVars(shape: Branding['shape']): Record<string, string> {
