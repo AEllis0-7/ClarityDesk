@@ -170,19 +170,50 @@ Fonts, the corners are 4px, and the header is white with the blue logo.
   searches. Note that `comparisonEntities` counts only medication-shaped lexicon terms, by
   design for the clinical portal; product names go through the pin and the clauses instead.
 - **The box has grown.** On 9 September it held 123 resources: the 55 enriched, labelled
-  vendor guides plus 68 open-access papers, ABDO and GOC documents and the WHO vision report,
-  all unenriched and untagged (raw filenames in the Library, no topic). Three of the 68 are the
-  corpus folder's own `README`, `manifest` and `links-to-ingest` files and should be removed
-  from the box. Re-run enrichment (scope: missing) and analysis once the set is final.
+  vendor guides plus 68 open-access papers, ABDO and GOC documents and the WHO vision report.
+  Three of the 68 were the corpus folder's own `README`, `manifest` and `links-to-ingest`
+  files; Alfie deleted them, leaving 120. Enrichment and analysis over the full set are the
+  section below.
+
+## The whole corpus, enriched and filed (9 September 2026)
+
+- **All 120 documents are enriched.** The 65 that arrived unenriched (open-access papers, the
+  ABDO and GOC documents, the WHO vision report) went through the research-summary agent in one
+  `scope: missing` run: 65 enriched, 0 errors. The Library shows plain titles for the whole
+  corpus now, not raw filenames.
+- **Analysis labels every resource, not just the sampled half.** The design prompt is capped at
+  14,000 characters of inventory, so at 120 resources it sees a stride sample of about half and
+  the rest kept no topic at all - they would have vanished from the filters and the topic rows.
+  `analyseTenant` now runs a second pass: `chunkInventory` splits whatever the sample missed
+  into further batches, and each batch is classified against the taxonomy the design just fixed
+  (`ASSIGN_SCHEMA`, `assignmentPrompt`). A batch that fails costs its own batch, not the run.
+  Result on the box: **120 of 120 labelled, `untagged.topic` 0.**
+- **Eight situations, not seven.** The first re-run under the old brief folded sun lenses,
+  blue-light and night driving into one 29-document "UV and glare" bucket. The brief now names
+  the eight situations to keep apart and asks for sentence-case labels, and the taxonomy came
+  back as: progressive and multifocal (15), everyday single vision (13), coatings and treatments
+  (10), sun, UV and light-adaptive (12), screens, driving and glare (15), children and myopia
+  control (33), measurements and fit (10), how lenses are made (12). Kinds gained
+  `professional-standard` for the ABDO and GOC documents.
+- **Copy and prompt follow the corpus.** The home lede and the ask intro said every answer comes
+  from "the lens makers' guides", which is no longer true of two thirds of the box. Both now say
+  the guides and the research behind them. The answer prompt used to require naming a maker for
+  every claim; it now asks the answer to say where a claim comes from - the maker when it is the
+  maker's own guide, independent research or the professional standards when it is not - and
+  never to present one as the other.
+- **Seed topic ids changed.** `driving-screen-office` and `light-adaptive-sun-lenses` are gone,
+  replaced by `screens-driving-glare` and `sun-uv-light-adaptive`, plus the new
+  `measurements-fit`; the suggested questions were remapped onto them.
 
 ## Next steps, in order
 
-1. **Confidence for non-experts - remaining.** The wording above is a first pass; watch real
-   answers for a week and tune. Maker logos beside the guide titles need a maker field on the
-   enrichment schema (a "lens" agent), which is Phase 2 of enrichments upstream.
-2. **Confidence for non-experts (original note).** Decide what the adviser should see instead of a REMi meter:
-   probably "Backed by Zeiss and Hoya guides" with the source logos, and a quiet "check with the
-   optometrist" line when the audit finds an uncited sentence.
+1. **Answer feedback from the floor.** The thumbs on every answer already reach the platform;
+   surfacing them in Manage gives the list of questions the corpus answers badly, which matters
+   more now the corpus is 120 documents rather than 55.
+2. **Product explainer cards.** See the ideas below - the largest visible feature still open.
+3. **Confidence for non-experts - remaining.** The plain-register wording is a first pass; watch
+   real answers for a week and tune. Maker logos beside the guide titles need a maker field on
+   the enrichment schema (a "lens" agent), which is Phase 2 of enrichments upstream.
 4. **Rotate the box token** and consider turning off anonymous reads on the box before the URL is
    shared with anyone.
 

@@ -38,7 +38,7 @@ describe('ClarityDesk tenant', () => {
     expect(config).toBeDefined()
     expect(store.isCustom('claritydesk')).toBe(false)
     // The ids are the `topic` labels on the box; no maker names in a label.
-    expect(config?.topics.length).toBe(7)
+    expect(config?.topics.length).toBe(8)
     for (const topic of config?.topics ?? []) {
       expect(topic.label).not.toMatch(/zeiss|hoya|essilor|nikon|transitions/i)
     }

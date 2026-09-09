@@ -2,7 +2,7 @@ import { describe, it } from '@std/testing/bdd'
 import { expect } from '@std/expect'
 import type { AragProvider } from '@research-portal/retrieval'
 import type { AnalyseEvent, TenantConfig } from '@research-portal/core'
-import { analyseTenant, analysisPrompt } from './analyse.ts'
+import { analyseTenant, analysisPrompt, assignmentPrompt } from './analyse.ts'
 import { tenantConfig, TenantStore } from './tenants.ts'
 
 const corpus = {
@@ -135,5 +135,119 @@ describe('analyseTenant', () => {
     expect(events.some((e) => e.type === 'done')).toBe(false)
     expect(calls.labelled).toEqual([])
     expect(tenants.get('claritydesk')!.topics).toEqual(before.topics)
+  })
+})
+
+describe('assignmentPrompt', () => {
+  const taxonomy = { topics: design.topics, kinds: design.kinds }
+
+  it('restates the taxonomy ids and the qualifying descriptions', () => {
+    const config = tenantConfig('claritydesk')!
+    const prompt = assignmentPrompt(config, taxonomy, { count: 2, inventory: '1. A - a\n2. B - b' })
+    expect(prompt).toContain('- progressive-lenses: Multifocal designs')
+    expect(prompt).toContain('- coatings: Anti-reflective, UV')
+    expect(prompt).toContain('- fact-sheet: One product')
+    expect(prompt).toContain('1. A - a\n2. B - b')
+    expect(prompt).toContain('from 1 to 2')
+  })
+
+  it("leads with a curated tenant's brief so batches match the sample", () => {
+    const config = tenantConfig('claritydesk')!
+    const prompt = assignmentPrompt(config, taxonomy, { count: 1, inventory: '1. A - a' })
+    expect(prompt.startsWith('You are classifying the corpus behind ClarityDesk')).toBe(true)
+    expect(prompt).toContain(config.analysis!.brief)
+  })
+
+  it('asks for nothing but the ids it defined', () => {
+    const prompt = assignmentPrompt(tenantConfig('marine')!, taxonomy, {
+      count: 1,
+      inventory: '1. A - a',
+    })
+    expect(prompt).toContain('do not invent a topic or a kind')
+    expect(prompt).not.toContain('suggested questions')
+  })
+})
+
+describe('analyseTenant over a corpus larger than one prompt', () => {
+  /** Enough resources, and long enough lines, to force a sampled design. */
+  const wide = Array.from({ length: 200 }, (_, i) => ({
+    id: `w${i + 1}`,
+    title: `Resource ${i + 1}`,
+    summary: 'y'.repeat(180),
+  }))
+
+  function stubWide() {
+    const calls = { prompts: [] as string[], labelled: [] as string[] }
+    const management = {
+      listResources: () => Promise.resolve(wide),
+      // Every pass gets assignments for a full batch; the design pass also
+      // gets the taxonomy, which the batch schema simply ignores.
+      askStructured: (_t: TenantConfig, _s: unknown, query: string) => {
+        calls.prompts.push(query)
+        const count = query.split('\n').filter((l) => /^\d+\. Resource /.test(l)).length
+        return Promise.resolve({
+          object: {
+            ...design,
+            assignments: Array.from({ length: count }, (_, i) => ({
+              number: i + 1,
+              topicId: 'coatings',
+              kindId: 'fact-sheet',
+            })),
+          },
+        })
+      },
+      createLabelset: () => Promise.resolve(),
+      patchResourceClassifications: (_t: TenantConfig, id: string) => {
+        calls.labelled.push(id)
+        return Promise.resolve()
+      },
+    } as unknown as AragProvider
+    return { management, calls }
+  }
+
+  it('labels every resource, not only the ones the design pass sampled', async () => {
+    const tenants = freshStore()
+    const { management, calls } = stubWide()
+
+    const events = await run(management, tenants, tenants.get('claritydesk')!)
+
+    expect(calls.prompts.length).toBeGreaterThan(1)
+    expect(new Set(calls.labelled).size).toBe(wide.length)
+    expect(calls.labelled.length).toBe(wide.length)
+    const done = events.find((e) => e.type === 'done')
+    expect(done).toMatchObject({ labelled: wide.length })
+    expect(
+      events.some((e) => e.type === 'item' && e.label === `Labelled 200 of 200 resources`),
+    ).toBe(true)
+  })
+
+  it('keeps going when one batch fails, and says how many were left', async () => {
+    const tenants = freshStore()
+    const { management, calls } = stubWide()
+    let batch = 0
+    const flaky = {
+      ...management,
+      askStructured: (
+        t: TenantConfig,
+        s: Parameters<AragProvider['askStructured']>[1],
+        query: string,
+      ) => {
+        batch += 1
+        return batch === 2
+          ? Promise.reject(new Error('Agentic RAG API 422 for /ask: string_too_long'))
+          : management.askStructured(t, s, query)
+      },
+    } as unknown as AragProvider
+
+    const events = await run(flaky, tenants, tenants.get('claritydesk')!)
+
+    expect(events.some((e) => e.type === 'item' && /Could not label batch 1 of/.test(e.label)))
+      .toBe(true)
+    expect(events.some((e) => e.type === 'done')).toBe(true)
+    expect(calls.labelled.length).toBeGreaterThan(0)
+    expect(calls.labelled.length).toBeLessThan(wide.length)
+    expect(
+      events.some((e) => e.type === 'item' && /could not be labelled/.test(e.detail ?? '')),
+    ).toBe(true)
   })
 })

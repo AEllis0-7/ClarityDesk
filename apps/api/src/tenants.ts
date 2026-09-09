@@ -155,11 +155,13 @@ const marine: TenantConfig = TenantConfigSchema.parse({
 // ClarityDesk: a plain-language explainer for in-store eyewear advisers. The
 // reader is a salesperson with no optical training, talking to a customer at
 // the counter, so the answer prompt writes for the customer and every
-// suggested question is one a shopper actually asks. The corpus is lens-maker
-// white papers (Essilor, Hoya, Nikon, Zeiss and trade press). The topic ids
-// are the `topic` labels corpus analysis wrote to the box on 8 September 2026
-// under the analysis brief below - by customer situation, not by maker - and
-// must match the box: an id that is not a real label silently empties Explore.
+// suggested question is one a shopper actually asks. The corpus is 120
+// documents: lens-maker white papers (Essilor, Hoya, Nikon, Zeiss and trade
+// press), open-access clinical research, and UK professional standards from
+// the ABDO and the GOC. The topic ids are the `topic` labels corpus analysis
+// wrote to the box on 9 September 2026 under the analysis brief below - by
+// customer situation, not by maker - and must match the box: an id that is
+// not a real label silently empties Explore.
 const CLARITYDESK_ASK_PROMPT = [
   'You are ClarityDesk, a plain-language guide that helps an in-store eyewear adviser explain ' +
   'lenses, coatings and frames to a customer standing at the counter. The adviser has no ' +
@@ -167,7 +169,7 @@ const CLARITYDESK_ASK_PROMPT = [
   'for the customer.',
   'Always answer from the cited sources. Never refuse, and never write "Not enough data to ' +
   'answer this", when any relevant source is present. For any part of the question the sources ' +
-  'do not cover, say plainly that the product guides do not cover it, and do not fill the gap ' +
+  'do not cover, say plainly that the guides do not cover it, and do not fill the gap ' +
   'from general knowledge.',
   'Lead with the answer in one or two everyday sentences, then explain in short paragraphs or ' +
   'a short bulleted list. Keep the whole answer under about 180 words unless the question asks ' +
@@ -177,14 +179,17 @@ const CLARITYDESK_ASK_PROMPT = [
   'close-up reading harder (presbyopia)". Explain what a feature means for the customer\'s day ' +
   '- driving at night, using a phone, working at a screen, playing sport, thinner and lighter ' +
   'lenses - rather than how it is engineered.',
-  'Keep numbers simple: round percentages, say "up to" when the source does, and always name ' +
-  'the maker a claim comes from ("Zeiss says ..."). Do not compare makers unless the question ' +
-  'asks for it, and never invent a comparison the sources do not make.',
+  'Keep numbers simple: round percentages, say "up to" when the source does, and always say ' +
+  'where a claim comes from. Name the maker when the source is its own guide ("Zeiss says ' +
+  '..."), and say so plainly when it is independent work ("independent research found ...", ' +
+  '"the professional standards say ..."). Never present a maker\'s claim as independent, or ' +
+  "independent research as a maker's. Do not compare makers unless the question asks for it, " +
+  'and never invent a comparison the sources do not make.',
   'Never recommend a prescription, diagnose an eye condition or give medical advice. If the ' +
   "question needs an eye test or an optometrist's judgement, say so in one sentence.",
   'Cite at claim level: after each factual claim add a bracketed marker like [1]; the ' +
-  'application assigns the real citation numbers itself. Refer to the material as "the product ' +
-  'guides" or "the maker\'s information", never as "the context".',
+  'application assigns the real citation numbers itself. Refer to the material as "the guides" ' +
+  'or "the research", never as "the context".',
   'Finish with one line the adviser can use next, starting "Try asking:", with a good ' +
   'follow-up question for the customer, such as how much time they spend on screens.',
   'Australian English, no em dashes.',
@@ -215,9 +220,10 @@ const claritydesk: TenantConfig = TenantConfigSchema.parse({
     { id: 'progressive-multifocal-lenses', label: 'Progressive and multifocal lenses' },
     { id: 'single-vision-lenses', label: 'Everyday single vision lenses' },
     { id: 'coatings-treatments', label: 'Coatings and treatments' },
-    { id: 'light-adaptive-sun-lenses', label: 'Light-adaptive and sun lenses' },
-    { id: 'driving-screen-office', label: 'Driving, screen and office work' },
+    { id: 'sun-uv-light-adaptive', label: 'Sun, UV and light-adaptive lenses' },
+    { id: 'screens-driving-glare', label: 'Screens, driving and glare' },
     { id: 'children-myopia-control', label: 'Children and myopia control' },
+    { id: 'measurements-fit', label: 'Measurements and fit' },
     { id: 'lens-manufacturing', label: 'How lenses are made' },
   ],
   // Each question names the topic it sits under on the counter home page.
@@ -245,17 +251,17 @@ const claritydesk: TenantConfig = TenantConfigSchema.parse({
     {
       id: 'claritydesk-q5',
       text: 'Are blue light lenses worth it if I work at a screen all day?',
-      topicId: 'driving-screen-office',
+      topicId: 'screens-driving-glare',
     },
     {
       id: 'claritydesk-q6',
       text: 'What do light-adaptive (photochromic) lenses actually do?',
-      topicId: 'light-adaptive-sun-lenses',
+      topicId: 'sun-uv-light-adaptive',
     },
     {
       id: 'claritydesk-q7',
       text: 'What lenses are best for driving at night?',
-      topicId: 'driving-screen-office',
+      topicId: 'screens-driving-glare',
     },
     {
       id: 'claritydesk-q8',
@@ -284,8 +290,8 @@ const claritydesk: TenantConfig = TenantConfigSchema.parse({
   regionalDiscovery: false,
   home: {
     style: 'counter',
-    lede: "Ask in the customer's own words. Every answer comes from the lens makers' " +
-      'guides, in plain language, with the guide it came from.',
+    lede: "Ask in the customer's own words. Every answer comes from the lens guides and " +
+      'the research behind them, in plain language, with the guide it came from.',
     families: [
       { label: 'Zeiss SmartLife' },
       { label: 'Zeiss DriveSafe' },
@@ -354,8 +360,8 @@ const claritydesk: TenantConfig = TenantConfigSchema.parse({
     'Shamir',
   ],
   copy: {
-    askIntro: "Ask in the customer's words. The answer comes from the makers' guides, in " +
-      'plain language.',
+    askIntro: "Ask in the customer's words. The answer comes from the guides and the " +
+      'research behind them, in plain language.',
     investigationExample: 'e.g. Which progressive lens suits a first-time wearer?',
     generateExamples: {
       comparison: 'e.g. Compare Zeiss SmartLife with Hoya progressive lenses',
@@ -370,16 +376,20 @@ const claritydesk: TenantConfig = TenantConfigSchema.parse({
   answerRegister: 'plain',
   analysis: {
     brief: 'The reader is an in-store eyewear adviser with no optical training, explaining a ' +
-      'lens, coating or frame to a customer at the counter. Organise the topics by the ' +
-      "customer's situation, never by maker or brand: for example progressive and multifocal " +
-      'lenses, everyday single vision lenses (including thin and light lenses for strong ' +
-      'prescriptions), coatings and treatments (anti-reflective, scratch, UV), light-adaptive ' +
-      'and sun lenses, driving, screen and office work, children and myopia control, and ' +
-      'background reading on how lenses are made. Only name a topic the corpus actually ' +
-      'holds documents for. A maker can appear in a description but not in a topic ' +
-      'label. Kinds should say what a document is to a salesperson (product fact sheet, ' +
-      "technical white paper, clinical study, buyer's guide, trade article). Every label " +
-      'must be something a shop assistant would say aloud.',
+      'lens, coating or frame to a customer at the counter. The corpus mixes lens-maker ' +
+      'literature with independent clinical research and UK professional standards, so ' +
+      "organise the topics by the customer's situation, never by maker, brand or where a " +
+      'document came from. Use these situations where the corpus supports them, and keep ' +
+      'them apart rather than folding them together: progressive and multifocal lenses; ' +
+      'everyday single vision lenses, including thin and light lenses for strong ' +
+      'prescriptions; coatings and treatments (anti-reflective, scratch, UV); sun, UV and ' +
+      'light-adaptive lenses; screens, driving and glare; children and myopia control; ' +
+      'getting the measurements and the fit right; and how lenses are made. Only name a ' +
+      'topic the corpus actually holds documents for. A maker can appear in a description ' +
+      'but not in a topic label, and every label is sentence case, not Title Case. Kinds ' +
+      'should say what a document is to a salesperson (product fact sheet, technical white ' +
+      "paper, clinical study, professional standard, buyer's guide, trade article). Every " +
+      'label must be something a shop assistant would say aloud.',
     keepQuestions: true,
   },
 })
