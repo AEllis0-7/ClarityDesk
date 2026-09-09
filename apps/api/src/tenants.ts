@@ -374,6 +374,10 @@ const claritydesk: TenantConfig = TenantConfigSchema.parse({
   },
   askPrompt: CLARITYDESK_ASK_PROMPT,
   answerRegister: 'plain',
+  // The lexicon is product ranges, not molecules, so "Varilux XR versus
+  // SmartLife" is a two-way comparison and each half is answered from its
+  // own maker's guide rather than from a pool of both.
+  comparisonTerms: 'lexicon',
   analysis: {
     brief: 'The reader is an in-store eyewear adviser with no optical training, explaining a ' +
       'lens, coating or frame to a customer at the counter. The corpus mixes lens-maker ' +

@@ -3889,6 +3889,9 @@ export function buildApp(opts: BuildAppOptions): Hono {
       const { query, route: routeMode, ...askOpts } = parsed.data
       const settings = tenants.promptsFor(config.slug)
       const lexicon = config.entityTerms ?? []
+      // A product portal compares the ranges it lists; a clinical one only
+      // compares drug-shaped terms (see TenantConfig.comparisonTerms).
+      const comparisonTerms = config.comparisonTerms ?? 'medication'
       const documentScope = Boolean(askOpts.resourceId)
       const firstTurn = !askOpts.context?.length
       // The papers the session's earlier turns cited: retrieved again for
@@ -4049,7 +4052,9 @@ export function buildApp(opts: BuildAppOptions): Hono {
       // the same guarantee made structural, so the extra passes bought
       // nothing but latency. `comparisonEntities` stays: it still tells the
       // rest of the route that the question names more than one thing.
-      const entities = !documentScope && firstTurn ? comparisonEntities(query, lexicon) : []
+      const entities = !documentScope && firstTurn
+        ? comparisonEntities(query, lexicon, comparisonTerms)
+        : []
       // The pinned papers as the portal's own retrieval found them: a pinned
       // paper grounds and is cited through its prequery even when the
       // platform's retrieval item omits it, and the rail must still show it.
@@ -4081,7 +4086,7 @@ export function buildApp(opts: BuildAppOptions): Hono {
       // be seven seconds of dead time before a path that never uses it.
       const decompositionPending =
         evidenceSeeking && !isResultsQuestion(query) && !askOpts.prequeries?.length && firstTurn &&
-          !clausePinningApplies(query, lexicon) &&
+          !clausePinningApplies(query, lexicon, comparisonTerms) &&
           decomposable(query) && opts.management
           ? Promise.race([
             opts.management.askStructured(
@@ -4986,7 +4991,7 @@ export function buildApp(opts: BuildAppOptions): Hono {
       })()
       if (
         !documentScope && firstTurn && !reformat && opts.management && !namesAbsentStudy &&
-        clausePinningApplies(query, lexicon)
+        clausePinningApplies(query, lexicon, comparisonTerms)
       ) {
         /** A clause needs a paper this much better before it leaves the clause before it. */
         const CLAUSE_SWITCH_MARGIN = 0.2
@@ -5001,6 +5006,7 @@ export function buildApp(opts: BuildAppOptions): Hono {
           const composed = await answerByClause(query, {
             catalogue,
             lexicon,
+            comparisonTerms,
             floor: GROUNDING_FLOOR,
             margin: CLAUSE_SWITCH_MARGIN,
             find: findFor,

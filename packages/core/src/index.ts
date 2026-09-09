@@ -417,6 +417,18 @@ export const TenantConfigSchema = z.object({
   /** Domain lexicon (drug and gene names) the router recognises as entities. */
   entityTerms: z.string().array().optional(),
   /**
+   * Which lexicon terms make a question a comparison, answered one entity at
+   * a time from that entity's own document rather than from a pool.
+   *
+   * 'medication' (the default) counts only drug-shaped terms, which is what
+   * a clinical corpus wants: a syndrome named beside a drug is that drug's
+   * question, not a two-way comparison. 'lexicon' counts every term the
+   * portal lists, for a corpus whose entities are products rather than
+   * molecules - "Varilux XR versus SmartLife" is two ranges, and each
+   * answer belongs to its own maker's guide.
+   */
+  comparisonTerms: z.enum(['medication', 'lexicon']).optional(),
+  /**
    * The portal's own timezone, as an IANA name ("Australia/Melbourne"). Every
    * user-facing date the API writes is formatted in it, so an artefact made in
    * the morning is not dated yesterday (review loop 6

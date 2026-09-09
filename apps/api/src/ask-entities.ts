@@ -11,10 +11,13 @@
  * Everything here is deterministic and pure, so the module is tested
  * without the platform.
  */
-import type { ScoredResource } from '@research-portal/core'
+import type { ScoredResource, TenantConfig } from '@research-portal/core'
 import { isMedicationTerm } from './ask-prequeries.ts'
 import { isResultsQuestion, lexiconEntities } from './intent-router.ts'
 import { isAttachmentTitle, studyAcronyms } from './study-guard.ts'
+
+/** Which lexicon terms a portal treats as comparable entities. */
+export type ComparisonTerms = NonNullable<TenantConfig['comparisonTerms']>
 
 /**
  * The clauses of a multi-part question, each a standalone retrieval query:
@@ -33,18 +36,53 @@ export function questionClauses(query: string): string[] {
 }
 
 /**
- * The drugs and studies a question names, in order: medication terms from
- * the lexicon and study acronyms. Two or more make the question a
- * comparison that grounds per entity.
+ * What a question names that can be compared, in order. Two or more make
+ * the question a comparison that grounds per entity.
+ *
+ * Under the default 'medication' rule that is drug-shaped lexicon terms and
+ * study acronyms - a clinical corpus wants a syndrome named beside a drug
+ * read as that drug's question, not as a two-way comparison. A portal whose
+ * entities are products sets 'lexicon': every term it lists counts, and
+ * acronyms do not, since a product corpus has no study names to pin and
+ * would read "UV" or "AR" as an entity.
  */
-export function comparisonEntities(query: string, lexicon: readonly string[]): string[] {
+export function comparisonEntities(
+  query: string,
+  lexicon: readonly string[],
+  terms: ComparisonTerms = 'medication',
+): string[] {
   const out: string[] = []
   const add = (e: string) => {
     if (!out.some((x) => x.toLowerCase() === e.toLowerCase())) out.push(e)
   }
-  for (const term of lexiconEntities(query, lexicon)) if (isMedicationTerm(term)) add(term)
-  for (const acronym of studyAcronyms(query)) add(acronym)
-  return out
+  if (terms !== 'lexicon') {
+    for (const term of lexiconEntities(query, lexicon)) if (isMedicationTerm(term)) add(term)
+    for (const acronym of studyAcronyms(query)) add(acronym)
+    return out
+  }
+  for (const term of lexiconEntities(query, lexicon)) add(term)
+  // A product lexicon nests: "Varilux XR" contains "Varilux", and both match
+  // the same words of the question. Left alone that reads as a third range
+  // to compare, and the reader gets a block declining to answer for
+  // "Varilux" beside the one that answered for "Varilux XR". The longest
+  // match wins, because it is the one the reader actually named.
+  const nested = out.filter((entity) =>
+    out.some((other) =>
+      other.length > entity.length && other.toLowerCase().includes(entity.toLowerCase())
+    )
+  )
+  const distinct = out.filter((entity) => !nested.includes(entity))
+  // `lexiconEntities` walks the lexicon, not the question, so it returns
+  // whichever term the portal happens to list first. The answer's blocks
+  // follow this order, and a customer asking about "Varilux XR versus
+  // SmartLife" should not be read SmartLife first. Only the product rule
+  // reorders: the clinical path's order is asserted where it is, and block
+  // order is not what this change is for.
+  const at = (entity: string) => {
+    const index = query.toLowerCase().indexOf(entity.toLowerCase())
+    return index === -1 ? Number.MAX_SAFE_INTEGER : index
+  }
+  return distinct.sort((a, b) => at(a) - at(b))
 }
 
 /**

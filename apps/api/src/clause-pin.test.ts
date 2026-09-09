@@ -9,7 +9,7 @@ import {
   clauseAddendum,
   clauseDecline,
   clausePinningApplies,
-  comparedMedications,
+  comparedEntities,
   composeClauseAnswers,
   decomposeQuestion,
   groupClauses,
@@ -103,10 +103,10 @@ describe('scopeResources', () => {
   })
 })
 
-describe('comparedMedications', () => {
+describe('comparedEntities', () => {
   it('splits a comparison of two drugs', () => {
     expect(
-      comparedMedications(
+      comparedEntities(
         'Compare the 12-month retention rates of brivaracetam and perampanel in real-world studies.',
         LEXICON,
       ),
@@ -115,7 +115,7 @@ describe('comparedMedications', () => {
 
   it('does not split a treatment path that merely names two drugs', () => {
     expect(
-      comparedMedications(
+      comparedEntities(
         'In patients who switched from levetiracetam to brivaracetam, what was the 12-month seizure freedom rate?',
         LEXICON,
       ),
@@ -124,7 +124,7 @@ describe('comparedMedications', () => {
 
   it('does not split a question that names a study: the study pins it whole', () => {
     expect(
-      comparedMedications(
+      comparedEntities(
         'What did the ESETT trial find about levetiracetam versus phenytoin?',
         LEXICON,
       ),
@@ -133,7 +133,7 @@ describe('comparedMedications', () => {
 
   it('uses the members retrieval supplied for a category comparison', () => {
     expect(
-      comparedMedications('Which anti-seizure medication has the best retention?', LEXICON, [
+      comparedEntities('Which anti-seizure medication has the best retention?', LEXICON, [
         'brivaracetam',
         'perampanel',
       ]),
@@ -590,7 +590,7 @@ describe('an open "which medications" question is never decomposed by drug', () 
     // The drugs come off the retrieved titles, not off the question: this is
     // what produced a "phenytoin" heading and clause declines for
     // cannabidiol and fenfluramine on a question that named none of them.
-    expect(comparedMedications(DRAVET, CONDITION_LEXICON, ['phenytoin', 'cannabidiol'])).toEqual([])
+    expect(comparedEntities(DRAVET, CONDITION_LEXICON, ['phenytoin', 'cannabidiol'])).toEqual([])
     expect(
       decomposeQuestion(DRAVET, CONDITION_LEXICON, ['phenytoin', 'cannabidiol']).map((c) => c.kind),
     ).toEqual(['whole'])
@@ -650,5 +650,116 @@ describe('guidancePin', () => {
         CONDITION_LEXICON,
       ),
     ).toBeNull()
+  })
+})
+
+describe('a portal that compares its whole lexicon', () => {
+  /** Product ranges: no drug suffix, so the default rule sees none of them. */
+  const RANGES = ['SmartLife', 'Varilux XR', 'DriveSafe', 'Crizal']
+
+  it('splits a comparison of two ranges, which the default rule leaves whole', () => {
+    const query = 'Compare Varilux XR with SmartLife for someone on a screen all day'
+
+    expect(comparedEntities(query, RANGES)).toEqual([])
+    expect(comparedEntities(query, RANGES, [], 'lexicon')).toEqual(['Varilux XR', 'SmartLife'])
+  })
+
+  it('asks each guide about its own range, in the shop-floor wording', () => {
+    const clauses = decomposeQuestion(
+      'Compare Varilux XR with SmartLife',
+      RANGES,
+      [],
+      'lexicon',
+    )
+
+    expect(clauses).toHaveLength(2)
+    expect(clauses.map((c) => c.entity)).toEqual(['Varilux XR', 'SmartLife'])
+    expect(clauses[0]?.ask).toContain('Answer only for Varilux XR')
+    expect(clauses[0]?.ask).toContain('this guide says')
+    expect(clauses[0]?.ask).not.toContain('treatments')
+    // Retrieval text leads with the range and drops the other one.
+    expect(clauses[0]?.text).toContain('Varilux XR')
+    expect(clauses[0]?.text).not.toContain('SmartLife')
+  })
+
+  it('turns clause pinning on for a range comparison', () => {
+    expect(clausePinningApplies('Compare Varilux XR with SmartLife', RANGES)).toBe(false)
+    expect(clausePinningApplies('Compare Varilux XR with SmartLife', RANGES, 'lexicon')).toBe(true)
+  })
+
+  it('leaves a question naming one range alone', () => {
+    expect(comparedEntities('Is SmartLife any good for driving?', RANGES, [], 'lexicon'))
+      .toEqual([])
+  })
+})
+
+describe('the retrieval text of a stripped comparison', () => {
+  const RANGES = ['SmartLife', 'Varilux XR']
+
+  it('leaves no dangling comparison verb for retrieval to score', () => {
+    const clauses = decomposeQuestion(
+      'Compare Varilux XR with SmartLife for someone on a screen all day',
+      RANGES,
+      [],
+      'lexicon',
+    )
+
+    for (const clause of clauses) {
+      expect(clause.text).not.toMatch(/\bcompare[sd]?\s+(?:with|to|against|between)\b/i)
+      expect(clause.text).not.toMatch(/\b(?:with|against|versus)\s+for\b/i)
+    }
+    expect(clauses[0]?.text).toBe('Varilux XR: Compare Varilux XR for someone on a screen all day')
+    expect(clauses[1]?.text).toBe('SmartLife: SmartLife for someone on a screen all day')
+  })
+
+  it('still tidies a clinical comparison the way it always did', () => {
+    const clauses = decomposeQuestion(
+      'Compare the 12-month retention rates of brivaracetam and perampanel in real-world studies.',
+      LEXICON,
+    )
+
+    expect(clauses).toHaveLength(2)
+    expect(clauses[0]?.text).toBe(
+      'perampanel: Compare the 12-month retention rates of perampanel in real-world studies.',
+    )
+  })
+})
+
+describe('composing a comparison that closes with a follow-up', () => {
+  const group = (heading: string, resourceId: string, title: string) => ({
+    heading,
+    resourceId,
+    title,
+    query: heading,
+    clauses: [{ text: heading, kind: 'entity' as const, label: heading, entity: heading }],
+  })
+
+  it('keeps one closing follow-up, not one per block', () => {
+    const composed = composeClauseAnswers([
+      {
+        group: group('Varilux XR', 'r1', 'Varilux XR guide'),
+        text: 'It is sharp in motion.\n\nTry asking: How long are you on a screen?',
+      },
+      {
+        group: group('SmartLife', 'r2', 'SmartLife guide'),
+        text: 'It suits a connected day.\n\nTry asking: How many hours on a phone?',
+      },
+    ], [])
+
+    expect(composed.text.match(/Try asking/g) ?? []).toHaveLength(1)
+    expect(composed.text).toContain('It is sharp in motion.')
+    expect(composed.text).toContain('Try asking: How many hours on a phone?')
+    expect(composed.text).not.toContain('How long are you on a screen?')
+  })
+
+  it('leaves a single answer of its own follow-up alone', () => {
+    const composed = composeClauseAnswers([
+      {
+        group: group('Varilux XR', 'r1', 'Varilux XR guide'),
+        text: 'It is sharp in motion.\n\nTry asking: How long are you on a screen?',
+      },
+    ], [])
+
+    expect(composed.text).toContain('Try asking: How long are you on a screen?')
   })
 })

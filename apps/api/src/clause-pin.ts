@@ -25,6 +25,7 @@
 import type { Citation, ResourceSummary, ScoredResource } from '@research-portal/core'
 import {
   comparisonEntities,
+  type ComparisonTerms,
   entityQuery,
   isDemographicQuestion,
   questionClauses,
@@ -84,21 +85,25 @@ export function comparesEntities(query: string): boolean {
 }
 
 /**
- * The medications a question compares. A question that also names a study,
+ * The entities a question compares. A question that also names a study,
  * antibody, consortium or quoted title is that study's question, not a drug
  * comparison: the loop 7 pin resolves it whole, and splitting it per drug
  * would ask the EXPERIENCE pooled analysis a levetiracetam question and a
  * brivaracetam question separately (PA1a).
  */
-export function comparedMedications(
+export function comparedEntities(
   query: string,
   lexicon: readonly string[],
   supplied: readonly string[] = [],
+  terms: ComparisonTerms = 'medication',
 ): string[] {
   if (questionNames(query, lexicon).some(isStrongName)) return []
   if (isOpenTreatmentQuestion(query, lexicon)) return []
   if (!comparesEntities(query) && !isSuperlativeComparison(query)) return []
-  const named = comparisonEntities(query, lexicon).filter((e) => isMedicationTerm(e))
+  // Under the default rule the entity must also be drug-shaped; a portal
+  // comparing products has already said its whole lexicon counts.
+  const named = comparisonEntities(query, lexicon, terms)
+    .filter((e) => terms === 'lexicon' || isMedicationTerm(e))
   return named.length >= 2 ? named : supplied.length >= 2 ? [...supplied] : []
 }
 
@@ -119,8 +124,9 @@ export function decomposeQuestion(
    * real-world retention"). See `medicationsInResults`.
    */
   supplied: readonly string[] = [],
+  terms: ComparisonTerms = 'medication',
 ): QuestionClause[] {
-  const entities = comparedMedications(query, lexicon, supplied)
+  const entities = comparedEntities(query, lexicon, supplied, terms)
   if (entities.length >= 2) {
     return entities.slice(0, MAX_CLAUSES).map((entity) => ({
       text: tidy(entityQuery(query, entity, entities)),
@@ -131,9 +137,13 @@ export function decomposeQuestion(
       // reports for its own. A superlative left in the clause question is
       // answered "this document does not state which medication has the best
       // retention", which is true of the paper and useless to the reader
-      // (D8-13).
-      ask: `${query} Answer only for ${entity}: report what this paper states about ${entity} ` +
-        'for the outcome the question asks about, without ranking or comparing treatments.',
+      // (D8-13). A product portal is asked in its own words, so the answer
+      // does not come back talking about treatments and outcomes.
+      ask: terms === 'lexicon'
+        ? `${query} Answer only for ${entity}: report what this guide says about ${entity} ` +
+          'for what the question asks, without ranking it against any other range.'
+        : `${query} Answer only for ${entity}: report what this paper states about ${entity} ` +
+          'for the outcome the question asks about, without ranking or comparing treatments.',
     }))
   }
   const parts = questionClauses(query)
@@ -179,6 +189,16 @@ function tidy(text: string): string {
   return text
     .replace(/\b(of|between|for|with|from|to|versus|vs\.?)\s+(?:and|or)\s+/gi, '$1 ')
     .replace(/\s+(?:and|or|versus|vs\.?)\s*([,.?!])/gi, '$1')
+    // A comparison whose other side has been stripped out leaves its verb
+    // holding a preposition with nothing between them - "Compare with
+    // SmartLife", "Varilux XR: Compare with for someone on a screen". That
+    // wording is what retrieval scores, and on a product corpus it dragged
+    // the clause under the grounding floor: the SmartLife half of a
+    // comparison scored 0.19 and was declined while the box held seven
+    // SmartLife guides.
+    .replace(/\b(?:compare[sd]?|comparison(?:\s+of)?)\s+(?:with|to|against|between)\s+/gi, '')
+    .replace(/\b(?:with|to|against|versus|vs\.?)\s+(?=for\b|in\b|on\b|when\b|[,.?!]|$)/gi, '')
+    .replace(/\b(?:compare[sd]?|comparison)\s+(?=for\b|in\b|on\b|when\b|[,.?!]|$)/gi, '')
     .replace(/\s{2,}/g, ' ')
     .replace(/\s+([,.?!])/g, '$1')
     .trim()
@@ -197,12 +217,13 @@ function tidy(text: string): string {
 export function clausePinningApplies(
   query: string,
   lexicon: readonly string[],
+  terms: ComparisonTerms = 'medication',
 ): boolean {
   // An open "which medications" question has no clause structure at all, so
   // there is nothing to decompose and the only clauses available are the
   // drugs retrieval happened to return. See `isOpenTreatmentQuestion`.
   if (isOpenTreatmentQuestion(query, lexicon)) return false
-  if (comparedMedications(query, lexicon).length >= 2) return true
+  if (comparedEntities(query, lexicon, [], terms).length >= 2) return true
   if (isSuperlativeComparison(query) && !questionNames(query, lexicon).some(isStrongName)) {
     return true
   }
@@ -455,6 +476,8 @@ export interface ClauseResolution {
 export interface ClauseDeps {
   catalogue: readonly ResourceSummary[]
   lexicon: readonly string[]
+  /** Which lexicon terms count as comparable entities. Default 'medication'. */
+  comparisonTerms?: ComparisonTerms
   /** A find over the collection, or inside a resource set. */
   find(text: string, resourceIds?: readonly string[]): Promise<readonly ScoredResource[]>
   /** The name pin for one clause's own text, when its names resolve. */
@@ -893,7 +916,22 @@ export function composeClauseAnswers(
     blocks.push(group.heading ? `**${group.heading}**\n\n${attributed}` : attributed)
   }
   for (const clause of declined) blocks.push(clauseDecline(clause))
-  return { text: blocks.join('\n\n').trim(), citations }
+  return { text: trimInnerFollowUps(blocks).join('\n\n').trim(), citations }
+}
+
+/**
+ * A prompt that asks the answer to close with a follow-up ("Try asking:
+ * how long are you on a screen?") gets one per block here, because each
+ * block is its own generation. Two ranges compared then hand the reader a
+ * follow-up question in the middle of the answer. Only the last one is
+ * kept, so the answer closes once.
+ */
+function trimInnerFollowUps(blocks: readonly string[]): string[] {
+  const followUp = /\n+\s*(?:\*\*)?Try asking\b[^\n]*$/i
+  const last = blocks.length - 1
+  return blocks.map((block, index) =>
+    index === last ? block : block.replace(followUp, '').trimEnd()
+  )
 }
 
 /** Every sentence of a composed answer carries one marker at most - the invariant, for tests. */
@@ -941,11 +979,12 @@ export async function answerByClause(
   query: string,
   deps: ClausePlanDeps,
 ): Promise<ClauseAnswer | null> {
+  const terms = deps.comparisonTerms ?? 'medication'
   const supplied = deps.categoryMembers && isSuperlativeComparison(query) &&
-      comparisonEntities(query, deps.lexicon).length < 2
+      comparisonEntities(query, deps.lexicon, terms).length < 2
     ? await deps.categoryMembers().catch(() => [] as string[])
     : []
-  const clauses = decomposeQuestion(query, deps.lexicon, supplied)
+  const clauses = decomposeQuestion(query, deps.lexicon, supplied, terms)
   const resolutions = await resolveClauses(clauses, deps)
   if (!resolutions.some((r) => r.resourceId)) return null
   const { groups, declined } = groupClauses(resolutions, stripFraming(query))

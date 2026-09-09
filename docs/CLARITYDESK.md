@@ -235,6 +235,29 @@ Fonts, the corners are 4px, and the header is white with the blue logo.
   this" guardrail arrived as ordinary field text and rendered as a panel of boilerplate (now run
   through `rewriteSentinels`, and a field left empty drops its panel).
 
+## Comparing two ranges (9 September 2026)
+
+- Clause pinning answers a comparison one entity at a time, each from that entity's own document,
+  but what counted as an entity was hardwired to drug morphology: `isMedicationTerm` wants a
+  lowercase word with a drug suffix, so "Varilux XR versus SmartLife" was two product names it
+  could not see and the answer came back as one merged block over a pool of guides.
+- `TenantConfig.comparisonTerms` now says which lexicon terms count: `'medication'` (the default,
+  and the clinical portal's behaviour byte for byte) or `'lexicon'`, which ClarityDesk sets. A
+  comparison then gets one block per range, each grounded in and cited to its own guide.
+- Three things the first live comparison exposed, all fixed here:
+  1. **Nested lexicon terms.** `Varilux` and `Varilux XR` both matched, so the reader got a third
+     block declining to answer for "Varilux" beside the one that answered for "Varilux XR". The
+     longest match wins now.
+  2. **A dangling comparison verb.** Stripping the other range left "SmartLife: Compare with
+     SmartLife for someone on a screen all day", and that text is what retrieval scores: it came
+     back at 0.19 against a grounding floor of 0.3, so the SmartLife half was declined while the
+     box held seven SmartLife guides. Tidied, the same clause scores 0.63.
+  3. **A follow-up per block.** Each block is its own generation, so a two-range comparison closed
+     with two "Try asking" lines, one of them mid-answer. Only the last is kept.
+- Block order follows the question for a product portal, not the order the lexicon happens to
+  list: asking about "Varilux XR versus SmartLife" must not answer SmartLife first. The clinical
+  path keeps its own order, which its tests assert.
+
 ## Next steps, in order
 
 1. **Confidence for non-experts - remaining.** The plain-register wording is a first pass; watch
@@ -253,9 +276,6 @@ Ordered roughly by value to the adviser at the counter over effort.
 - **"Explain it to the customer" mode.** A toggle on any answer that rewrites it as something the
   adviser says out loud in two sentences, plus a one-line analogy ("an anti-reflective coating is
   like the coating on a camera lens"). Same grounding, different register, no new retrieval.
-- **Compare two lenses side by side.** The Compare Configurations component exists; pointing it at
-  two product names with a fixed rubric (adaptation time, field of view, thickness, coatings,
-  price band) is the comparison a customer is silently making anyway.
 - **Prescription-strength guidance.** Ask for the customer's rough prescription band (not the
   exact numbers) and let the answer say which materials and designs the guides recommend for it.
   Keep it as guidance from the makers' documents, never as clinical advice.
