@@ -219,15 +219,30 @@ Fonts, the corners are 4px, and the header is white with the blue logo.
   platform, and it is keyed on the learning id, so a thumb followed by written detail counts
   once rather than twice.
 
+## Product explainer cards (9 September 2026)
+
+- Every product family on the counter home is now a card at `/t/<slug>/range/<family>`: what the
+  range is in one sentence, who it suits, what the customer will notice, what the extra money
+  buys, and three questions to ask before recommending it - plus the guides it was built from.
+- Built with `askStructured` under `requireGrounding`, so a range somebody listed but never added
+  guides for gets an honest "not enough in the guides for this range" instead of a fluent card
+  written from the model's background knowledge.
+- Cached per family (`ExplainerStore`, `DurableExplainerStore`): a card costs one generation and
+  is served from the cache after that. `?refresh=1` rebuilds it and is passcode-gated, since a
+  public refresh is a free way to run up the platform bill.
+- Two things the first live card exposed and this fixes: the guide list showed raw filenames
+  (now merchandised like every other citation), and the platform's "Not enough data to answer
+  this" guardrail arrived as ordinary field text and rendered as a panel of boilerplate (now run
+  through `rewriteSentinels`, and a field left empty drops its panel).
+
 ## Next steps, in order
 
-1. **Product explainer cards.** See the ideas below - the largest visible feature still open.
-2. **Confidence for non-experts - remaining.** The plain-register wording is a first pass; watch
+1. **Confidence for non-experts - remaining.** The plain-register wording is a first pass; watch
    real answers for a week and tune. Maker logos beside the guide titles need a maker field on
    the enrichment schema (a "lens" agent), which is Phase 2 of enrichments upstream.
-3. **Rotate the box token** and consider turning off anonymous reads on the box before the URL is
+2. **Rotate the box token** and consider turning off anonymous reads on the box before the URL is
    shared with anyone.
-4. **Ingest the in-app documentation.** Health reports `docsOk: false` for ClarityDesk because
+3. **Ingest the in-app documentation.** Health reports `docsOk: false` for ClarityDesk because
    the box holds no CorpusKit help pages, so the Help assistant answers nothing. One call fixes
    it: `POST /api/admin/t/claritydesk/docs/ingest`. It does not affect portal answers.
 
@@ -235,10 +250,6 @@ Fonts, the corners are 4px, and the header is white with the blue logo.
 
 Ordered roughly by value to the adviser at the counter over effort.
 
-- **Product explainer cards.** A page per lens family (Zeiss SmartLife, Hoya Hoyalux iD, Essilor
-  Varilux, Nikon Presio) generated from the box with `answer_json_schema`: who it is for, what
-  the customer will notice, what it costs more for, and the three questions to ask before
-  recommending it. The Generate page's "briefing" kind is most of the machinery already.
 - **"Explain it to the customer" mode.** A toggle on any answer that rewrites it as something the
   adviser says out loud in two sentences, plus a one-line analogy ("an anti-reflective coating is
   like the coating on a camera lens"). Same grounding, different register, no new retrieval.

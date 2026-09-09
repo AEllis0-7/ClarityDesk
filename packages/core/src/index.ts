@@ -450,10 +450,10 @@ export const TenantConfigSchema = z.object({
     heading: z.string().min(1).optional(),
     /** One line under the headline; absent means none. */
     lede: z.string().min(1).optional(),
-    /** Product families the reader can search in one tap, e.g. a lens range. */
+    /** Product families the reader can open in one tap, e.g. a lens range. */
     families: z.object({
       label: z.string().min(1),
-      /** The search the chip runs; defaults to the label. */
+      /** Extra retrieval terms for the family's card; defaults to the label. */
       query: z.string().min(1).optional(),
     }).array().optional(),
     /**
@@ -1300,3 +1300,12 @@ export type AskEvent = z.infer<typeof AskEventSchema>
 export * from './docs.ts'
 export * from './palettes.ts'
 export * from './study-design.ts'
+
+/**
+ * The url segment for one product family's explainer card. Shared so the
+ * home page's chip and the route that builds the card agree on the key,
+ * which is also the cache key the card is stored under.
+ */
+export function familyKey(label: string): string {
+  return label.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 60)
+}

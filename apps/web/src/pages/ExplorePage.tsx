@@ -1,6 +1,7 @@
 import { type FormEvent, useCallback, useMemo, useRef, useState } from 'react'
 import { useQueries, useQuery } from '@tanstack/react-query'
 import { Link, useNavigate, useOutletContext } from 'react-router-dom'
+import { familyKey } from '@research-portal/core'
 import type { FacetCounts, ResourceSummary, TenantConfig } from '@research-portal/core'
 import { getCatalog, getFacets, getTopicResources } from '../api/client.ts'
 import { groupQuestionsByTopic } from '../lib/question-groups.ts'
@@ -301,6 +302,9 @@ function FamilyBand({
   return (
     <section className='rp-shell rp-anim-rise rp-delay-3 pt-12 sm:pt-14'>
       <p className='rp-eyebrow text-ink-3'>Look up a range by name</p>
+      <p className='mt-1.5 max-w-[60ch] text-sm text-ink-3'>
+        A card for each range: who it suits, what the customer notices, and what to ask first.
+      </p>
       {
         /* On a phone the chips fill their wrap lines and clear 44px for a
          * thumb; from `sm` they sit at natural width, as in the region band.
@@ -312,7 +316,7 @@ function FamilyBand({
         {families.map((family) => (
           <li key={family.label} className='grow sm:grow-0'>
             <Link
-              to={`/t/${slug}/search?q=${encodeURIComponent(family.query ?? family.label)}`}
+              to={`/t/${slug}/range/${familyKey(family.label)}`}
               className='rp-focus inline-flex min-h-11 w-full items-center justify-center rounded-[var(--rp-radius-chip)] border border-line bg-surface px-3 py-1.5 text-sm font-medium text-ink-2 transition-colors duration-150 hover:bg-surface-2 hover:text-ink sm:min-h-0 sm:w-auto'
             >
               {family.label}

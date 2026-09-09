@@ -52,6 +52,7 @@ import {
   textCarriesQuote,
 } from './generate-sources.ts'
 import { analyseTenant } from './analyse.ts'
+import { familyFor, generateExplainer } from './explainer.ts'
 import {
   type GraphStrategyInput,
   implementKgStrategy,
@@ -190,6 +191,8 @@ import type { DocsHealth } from './docs-health.ts'
 import {
   type EnrichmentCollisionPolicy,
   type EnrichmentRecords,
+  ExplainerStore,
+  type ExplainerStoreApi,
   FeedbackStore,
   type FeedbackStoreApi,
   InsightsStore,
@@ -768,6 +771,8 @@ export interface BuildAppOptions {
   insights?: InsightsStoreApi
   /** Reader thumbs on answers; the portal's own copy of what the platform learns. */
   feedback?: FeedbackStoreApi
+  /** Generated product explainer cards, built once and served from the cache. */
+  explainers?: ExplainerStoreApi
   sessions?: SessionsStoreApi
   /** Source registry; shared with startScheduler in server.ts so a scheduled sync and a
    *  concurrent HTTP write don't clobber each other. A fresh store when omitted (tests). */
@@ -820,6 +825,7 @@ export function buildApp(opts: BuildAppOptions): Hono {
   const tenants = opts.tenants ?? new TenantStore({})
   const insights = opts.insights ?? new InsightsStore()
   const feedback = opts.feedback ?? new FeedbackStore()
+  const explainers = opts.explainers ?? new ExplainerStore()
   const routing = opts.routing ?? new RoutingLog()
   const sessions = opts.sessions ?? new SessionsStore()
   const watches = opts.watches ?? new WatchStore()
@@ -2134,6 +2140,50 @@ export function buildApp(opts: BuildAppOptions): Hono {
       return c.json({ ok: true })
     } catch {
       return c.json({ error: 'feedback_failed' }, 502)
+    }
+  })
+
+  // One product family's explainer card. Built from the corpus on first
+  // request and served from the cache after that: the card costs a
+  // structured generation, and a shop opening the same range all day should
+  // pay for one. `?refresh=1` rebuilds it, and is passcode-gated - a public
+  // refresh would be a free way to run up somebody's platform bill.
+  app.get('/api/t/:slug/explainer/:family', expensiveRateLimit, async (c) => {
+    const config = tenant(c.req.param('slug'))
+    if (!config) return c.json({ error: 'unknown_tenant' }, 404)
+    const key = c.req.param('family')
+    const family = familyFor(config, key)
+    if (!family) return c.json({ error: 'unknown_family' }, 404)
+    const refresh = c.req.query('refresh') === '1'
+    if (refresh) {
+      const authorised = opts.trustedAdmin?.(c.req.raw) ||
+        (Boolean(opts.adminPasscode) &&
+          await secretsEqual(c.req.header('x-admin-passcode') ?? '', opts.adminPasscode!))
+      if (!authorised) return c.json({ error: 'unauthorised' }, 401)
+    }
+    if (!refresh) {
+      const cached = explainers.get(config.slug, key)
+      if (cached) return c.json(cached)
+    }
+    if (!opts.management) return c.json({ error: 'management_unavailable' }, 503)
+    try {
+      const card = await generateExplainer(
+        opts.management,
+        config,
+        family,
+        (list) => merchandiseSources(enrichments, config.slug, list),
+      )
+      explainers.put(config.slug, key, card)
+      return c.json(card)
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'failed'
+      // A range somebody listed but never added guides for is the ordinary
+      // case here, and it deserves an honest answer rather than a card
+      // written from the model's background knowledge.
+      if (message === 'insufficient_grounding' || message === 'empty_explainer') {
+        return c.json({ error: 'insufficient_grounding', family: family.label }, 422)
+      }
+      return c.json({ error: 'explainer_failed', message: message.slice(0, 200) }, 502)
     }
   })
 
