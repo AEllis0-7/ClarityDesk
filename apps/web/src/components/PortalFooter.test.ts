@@ -12,14 +12,19 @@ describe('PortalFooter', () => {
   it('renders from the tenant branding rather than a per-slug content table', () => {
     expect(source).toContain('branding: Branding')
     expect(source).not.toMatch(/Record<string,\s*FooterContent>/)
-    expect(tenantLayoutSource).toContain('<PortalFooter branding={config.branding} />')
+    expect(tenantLayoutSource).toContain('branding={config.branding}')
   })
 
   it('invents nothing about the organisation it belongs to', () => {
     // Link columns, legal pages, social accounts and an Acknowledgement of
     // Country belong to a real organisation. A footer that generates them is
-    // asserting something the portal does not know.
-    expect(markup).not.toContain('href')
+    // asserting something the portal does not know. The portal's own
+    // controls are not such a claim, so the one link allowed here is the
+    // counter-mode exit the caller passes in - and it must be the only one.
+    const hrefs = markup.match(/href=\{?[^\s}]+/g) ?? []
+    expect(hrefs).toEqual(['href={exitCounterHref'])
+    expect(markup).not.toMatch(/https?:\/\//)
+    expect(markup).not.toMatch(/mailto:/)
     expect(markup).not.toContain('<svg')
     expect(markup).not.toMatch(/acknowledge/i)
     expect(markup).not.toMatch(/subscribe/i)

@@ -11,7 +11,9 @@ import type { Branding } from '@research-portal/core'
  * site rather than having this component guess. That also means every portal
  * gets a footer, instead of only the ones with hand-written content.
  */
-export function PortalFooter({ branding }: { branding: Branding }) {
+export function PortalFooter(
+  { branding, exitCounterHref }: { branding: Branding; exitCounterHref?: string },
+) {
   const year = new Date().getFullYear()
   return (
     <footer className='bg-[var(--rp-primary)]'>
@@ -24,6 +26,19 @@ export function PortalFooter({ branding }: { branding: Branding }) {
           <p className='mt-1 text-xs leading-relaxed text-[var(--rp-on-primary)]/65'>
             {branding.tagline}
           </p>
+          {
+            /* The way out of counter mode. A tablet has no keyboard to type a
+            * query string with, and an adviser who needs Manage has to be
+            * able to get back to it. */
+          }
+          {exitCounterHref && (
+            <a
+              href={exitCounterHref}
+              className='rp-focus mt-3 inline-flex min-h-11 items-center text-xs underline underline-offset-4 text-[var(--rp-on-primary)]/65 transition-colors duration-150 hover:text-[var(--rp-on-primary)]'
+            >
+              Leave counter mode
+            </a>
+          )}
         </div>
       </div>
     </footer>

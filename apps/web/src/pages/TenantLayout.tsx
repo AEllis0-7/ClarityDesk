@@ -19,6 +19,7 @@ import { KbSwitcher } from '../components/KbSwitcher.tsx'
 import { PortalFooter } from '../components/PortalFooter.tsx'
 import { SignInDialog } from '../components/SignInDialog.tsx'
 import { getAuthSession } from '../api/auth.ts'
+import { counterModeOn, exitCounterHref } from '../lib/counter-mode.ts'
 
 export type TenantOutletContext = {
   config: TenantConfig
@@ -131,6 +132,10 @@ export function TenantLayout() {
     retry: false,
   })
   const accountLabel = auth?.user?.name || ACCOUNT_LABEL
+  // The tablet on the counter reads bigger and carries no administration
+  // chrome; the same portal in the back office is untouched. Read once per
+  // navigation, so `?counter=1` applies the moment the link is followed.
+  const counterMode = counterModeOn(location.search, globalThis.localStorage)
   const accountIsAdmin = auth?.user?.isAdmin === true
   const headerRef = useRef<HTMLElement | null>(null)
   const navPanelRef = useRef<HTMLElement | null>(null)
@@ -302,7 +307,7 @@ export function TenantLayout() {
   // and mirror the theme onto <body> so portaled overlays follow it too (all
   // no-ops until the config loads).
   useTenantFonts(config?.branding)
-  useTextScale(config?.branding)
+  useTextScale(config?.branding, counterMode)
   // The viewer's light/dark scheme: system preference by default, their own
   // choice once they toggle it, persisted per browser.
   const { scheme, setChoice } = useViewerScheme()
@@ -344,7 +349,7 @@ export function TenantLayout() {
 
   return (
     <div
-      className='rp-tenant min-h-screen bg-app'
+      className={`rp-tenant min-h-screen bg-app${counterMode ? ' rp-counter' : ''}`}
       style={tenantThemeVars(config.branding, scheme)}
     >
       {
@@ -405,7 +410,16 @@ export function TenantLayout() {
               /* Header search, centred and full-measure: it is the only search
               * box in the product now, so it carries the weight. */
             }
-            <div className='hidden w-[min(40rem,42vw)] shrink-0 items-center lg:flex'>
+            {
+              /* The ask box is the counter's main tool, so a tablet in portrait
+              * gets it in the header from `md` rather than waiting for a
+              * desktop-width `lg`. */
+            }
+            <div
+              className={`hidden w-[min(40rem,42vw)] shrink-0 items-center lg:flex ${
+                counterMode ? 'md:flex' : ''
+              }`}
+            >
               <form
                 role='search'
                 onSubmit={(event) => {
@@ -491,17 +505,27 @@ export function TenantLayout() {
                   <SchemeIcon scheme={scheme} className='h-6 w-6' />
                 </button>
               </span>
-              <span className='hidden sm:inline-flex'>
-                <HelpMenu slug={config.slug} />
-              </span>
-              <span className='hidden sm:inline-flex'>
-                <AccountMenu
-                  isAdmin={accountIsAdmin}
-                  label={accountLabel}
-                  manageHref='/admin'
-                  onProfile={() => setSignInOpen(true)}
-                />
-              </span>
+              {
+                /* Help and the account menu are back-office controls: a tablet
+                * on the counter shows neither, so a customer leaning over
+                * cannot reach administration and an adviser is not offered
+                * documentation mid-sale. */
+              }
+              {!counterMode && (
+                <span className='hidden sm:inline-flex'>
+                  <HelpMenu slug={config.slug} />
+                </span>
+              )}
+              {!counterMode && (
+                <span className='hidden sm:inline-flex'>
+                  <AccountMenu
+                    isAdmin={accountIsAdmin}
+                    label={accountLabel}
+                    manageHref='/admin'
+                    onProfile={() => setSignInOpen(true)}
+                  />
+                </span>
+              )}
               {
                 /* Wrapped, because .rp-navtoggle sets its own display and would
                 * beat a `md:hidden` utility on the button itself - component
@@ -685,7 +709,12 @@ export function TenantLayout() {
         * it, and it overruns anything stacked below - which is exactly the
         * overlap this avoids. */
       }
-      {isViewportHeightRoute ? null : <PortalFooter branding={config.branding} />}
+      {isViewportHeightRoute ? null : (
+        <PortalFooter
+          branding={config.branding}
+          {...(counterMode ? { exitCounterHref: exitCounterHref(config.slug) } : {})}
+        />
+      )}
 
       {signInOpen ? <SignInDialog user={auth?.user} onClose={() => setSignInOpen(false)} /> : null}
 
