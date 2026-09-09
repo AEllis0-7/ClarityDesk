@@ -2598,11 +2598,28 @@ export function AskPage() {
    * unobtrusive error text on failure without crashing anything.
    */
   async function sendFeedback(messageId: string, good: boolean, text?: string): Promise<boolean> {
-    const message = messages.find((item) => item.id === messageId)
+    const index = messages.findIndex((item) => item.id === messageId)
+    const message = index === -1 ? undefined : messages[index]
     const sessionId = activeSessionId
     if (!message?.learningId || !sessionId) return false
+    // The verdict alone tells an administrator nothing they can act on, so
+    // the portal's own log gets the question that earned it and the guides
+    // the answer was working from.
+    const question = messages.slice(0, index).findLast((item) => item.author === 'USER')?.text
+    const titleById = new Map(message.sources.map((source) => [source.id, source.title]))
+    const citedTitles = [
+      ...new Set(
+        message.citations.map((citation) => titleById.get(citation.resourceId) ?? citation.title),
+      ),
+    ]
     try {
-      await sendAnswerFeedback(config.slug, { learningId: message.learningId, good, text })
+      await sendAnswerFeedback(config.slug, {
+        learningId: message.learningId,
+        good,
+        text,
+        ...(question ? { question } : {}),
+        ...(citedTitles.length ? { citedTitles } : {}),
+      })
       setMessages((prev) => {
         const next = prev.map((item) =>
           item.id === messageId ? { ...item, feedbackGood: good, feedbackSubmitted: true } : item

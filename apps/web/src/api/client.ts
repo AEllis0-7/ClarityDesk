@@ -984,7 +984,14 @@ async function clientRequest<T>(path: string, init?: RequestInit): Promise<T> {
 
 export function sendAnswerFeedback(
   slug: string,
-  input: { learningId: string; good: boolean; text?: string },
+  input: {
+    learningId: string
+    good: boolean
+    text?: string
+    /** The question this answer came from, for the portal's own feedback log. */
+    question?: string
+    citedTitles?: string[]
+  },
 ): Promise<{ ok: boolean }> {
   return clientRequest(`/api/t/${encodeURIComponent(slug)}/feedback`, {
     method: 'POST',
@@ -1180,6 +1187,37 @@ export interface InsightsSummary {
 
 export function getInsights(slug: string, passcode: string): Promise<InsightsSummary> {
   return adminRequest(`/api/admin/t/${encodeURIComponent(slug)}/insights`, passcode)
+}
+
+// --- Admin: answer feedback --------------------------------------------------
+
+export interface AnswerFeedbackRow {
+  ts: string
+  learningId: string
+  good: boolean
+  question: string
+  text?: string
+  citedTitles?: string[]
+}
+
+export interface FeedbackQuestionRow {
+  question: string
+  good: number
+  bad: number
+  lastTs: string
+  notes: string[]
+}
+
+export interface FeedbackSummary {
+  total: number
+  good: number
+  bad: number
+  needsWork: FeedbackQuestionRow[]
+  recent: AnswerFeedbackRow[]
+}
+
+export function getAnswerFeedback(slug: string, passcode: string): Promise<FeedbackSummary> {
+  return adminRequest(`/api/admin/t/${encodeURIComponent(slug)}/feedback`, passcode)
 }
 
 // --- Admin: hidden-resource curation -----------------------------------------

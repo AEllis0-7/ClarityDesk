@@ -190,6 +190,8 @@ import type { DocsHealth } from './docs-health.ts'
 import {
   type EnrichmentCollisionPolicy,
   type EnrichmentRecords,
+  FeedbackStore,
+  type FeedbackStoreApi,
   InsightsStore,
   type InsightsStoreApi,
   InvestigationStore,
@@ -482,6 +484,11 @@ const feedbackBodySchema = z.object({
   learningId: z.string().min(8),
   good: z.boolean(),
   text: z.string().max(2000).optional(),
+  // The platform's learning loop only needs the verdict; the portal's own
+  // log needs to know which question earned it, or Manage shows a list of
+  // anonymous thumbs nobody can act on.
+  question: z.string().max(2000).optional(),
+  citedTitles: z.string().max(300).array().max(20).optional(),
 })
 const summarizeBodySchema = z.object({
   resourceIds: z.string().min(1).array().min(1).max(20),
@@ -759,6 +766,8 @@ export interface BuildAppOptions {
   management?: AragProvider
   bindings?: BindingStoreApi
   insights?: InsightsStoreApi
+  /** Reader thumbs on answers; the portal's own copy of what the platform learns. */
+  feedback?: FeedbackStoreApi
   sessions?: SessionsStoreApi
   /** Source registry; shared with startScheduler in server.ts so a scheduled sync and a
    *  concurrent HTTP write don't clobber each other. A fresh store when omitted (tests). */
@@ -810,6 +819,7 @@ export function buildApp(opts: BuildAppOptions): Hono {
   const bindings = opts.bindings ?? new BindingStore({})
   const tenants = opts.tenants ?? new TenantStore({})
   const insights = opts.insights ?? new InsightsStore()
+  const feedback = opts.feedback ?? new FeedbackStore()
   const routing = opts.routing ?? new RoutingLog()
   const sessions = opts.sessions ?? new SessionsStore()
   const watches = opts.watches ?? new WatchStore()
@@ -2101,6 +2111,24 @@ export function buildApp(opts: BuildAppOptions): Hono {
     if (!opts.management) return c.json({ error: 'management_unavailable' }, 503)
     const parsed = feedbackBodySchema.safeParse(await c.req.json().catch(() => null))
     if (!parsed.success) return c.json({ error: 'invalid_request' }, 400)
+    // Log first: a reader on the shop floor has told us something useful even
+    // if the platform is unreachable, and losing that to a 502 wastes the one
+    // moment they were willing to say so. A retry replaces the entry rather
+    // than duplicating it, because the log is keyed on the learning id.
+    if (parsed.data.question) {
+      try {
+        feedback.record(config.slug, {
+          ts: new Date().toISOString(),
+          learningId: parsed.data.learningId,
+          good: parsed.data.good,
+          question: parsed.data.question,
+          ...(parsed.data.text ? { text: parsed.data.text } : {}),
+          ...(parsed.data.citedTitles?.length ? { citedTitles: parsed.data.citedTitles } : {}),
+        })
+      } catch {
+        // Best-effort: never fail a reader's thumb over the local log.
+      }
+    }
     try {
       await opts.management.feedback(config, parsed.data)
       return c.json({ ok: true })
@@ -3538,6 +3566,15 @@ export function buildApp(opts: BuildAppOptions): Hono {
     const config = tenant(c.req.param('slug'))
     if (!config) return c.json({ error: 'unknown_tenant' }, 404)
     return c.json(insights.summary(config.slug))
+  })
+
+  // What readers thought of the answers: the thumbs the platform's learning
+  // loop swallows, kept here so an administrator can see which questions the
+  // corpus is answering badly.
+  app.get('/api/admin/t/:slug/feedback', (c) => {
+    const config = tenant(c.req.param('slug'))
+    if (!config) return c.json({ error: 'unknown_tenant' }, 404)
+    return c.json(feedback.summary(config.slug))
   })
 
   app.post('/api/admin/t/:slug/resources/:id/hidden', async (c) => {

@@ -126,6 +126,119 @@ export class InsightsStore {
   }
 }
 
+// --- Answer feedback --------------------------------------------------------
+
+/**
+ * One thumb from a reader. The platform gets the same verdict for its
+ * learning loop, but that loop is write-only from here: nothing comes back
+ * that an administrator can read. This log is the portal's own copy, so
+ * Manage can show which questions the corpus is answering badly.
+ */
+export interface AnswerFeedback {
+  ts: string
+  /** The platform learning id, so a retry replaces rather than duplicates. */
+  learningId: string
+  good: boolean
+  question: string
+  /** What the reader typed after a thumbs down, when they typed anything. */
+  text?: string
+  /** Titles of the guides the answer cited, to see what it was working from. */
+  citedTitles?: string[]
+}
+
+/** One question, with every verdict readers have given its answers. */
+export interface FeedbackQuestion {
+  question: string
+  good: number
+  bad: number
+  lastTs: string
+  notes: string[]
+}
+
+export interface FeedbackSummary {
+  total: number
+  good: number
+  bad: number
+  /** Questions with at least one thumbs down, worst first. */
+  needsWork: FeedbackQuestion[]
+  recent: AnswerFeedback[]
+}
+
+export class FeedbackStore {
+  private pathFor(slug: string): string {
+    return join(DATA_DIR, 'feedback', `${safeSegment(slug)}.jsonl`)
+  }
+
+  record(slug: string, entry: AnswerFeedback): void {
+    const path = this.pathFor(slug)
+    mkdirSync(dirname(path), { recursive: true })
+    appendFileSync(path, JSON.stringify(entry) + '\n')
+  }
+
+  /**
+   * Every entry, oldest first, with one row per learning id: a reader who
+   * clicks a thumb and then sends written detail posts twice, and the shop
+   * should read that as one verdict, not two.
+   */
+  private readAll(slug: string): AnswerFeedback[] {
+    const path = this.pathFor(slug)
+    let raw: string
+    try {
+      raw = readFileSync(path, 'utf8')
+    } catch {
+      // Nobody has used the thumbs yet - not an error.
+      return []
+    }
+    const byLearningId = new Map<string, AnswerFeedback>()
+    for (const line of raw.split('\n')) {
+      if (!line) continue
+      try {
+        const entry = JSON.parse(line) as AnswerFeedback
+        byLearningId.set(entry.learningId, entry)
+      } catch (err) {
+        console.error(`[stores] skipping corrupt feedback line in ${path}:`, err)
+      }
+    }
+    return [...byLearningId.values()]
+  }
+
+  summary(slug: string, days = 90): FeedbackSummary {
+    return summariseFeedback(this.readAll(slug), days)
+  }
+}
+
+/**
+ * Roll a log of verdicts up into the shape Manage renders. Shared with the
+ * worker's durable store, which holds the same entries somewhere else.
+ */
+export function summariseFeedback(entries: AnswerFeedback[], days = 90): FeedbackSummary {
+  const cutoff = Date.now() - days * 24 * 3600 * 1000
+  const all = entries.filter((f) => Date.parse(f.ts) >= cutoff)
+  const byQuestion = new Map<string, FeedbackQuestion>()
+  for (const entry of all) {
+    const key = entry.question.trim().toLowerCase().replace(/[?.!]+$/, '')
+    if (!key) continue
+    const row = byQuestion.get(key) ??
+      { question: entry.question, good: 0, bad: 0, lastTs: entry.ts, notes: [] }
+    if (entry.good) row.good += 1
+    else row.bad += 1
+    if (entry.ts > row.lastTs) row.lastTs = entry.ts
+    if (entry.text) row.notes.push(entry.text)
+    byQuestion.set(key, row)
+  }
+  const needsWork = [...byQuestion.values()]
+    .filter((row) => row.bad > 0)
+    .sort((a, b) => b.bad - a.bad || b.lastTs.localeCompare(a.lastTs))
+    .slice(0, 20)
+  return {
+    total: all.length,
+    good: all.filter((f) => f.good).length,
+    bad: all.filter((f) => !f.good).length,
+    needsWork,
+    recent: all.slice(-25).reverse(),
+  }
+}
+
 // --- Research-trail sessions (namespaced per anonymous client id) -----------
 
 export interface StoredSession {
@@ -589,6 +702,7 @@ export class McpKeyStore {
 
 /** Public store contracts used by runtimes without a local filesystem. */
 export type InsightsStoreApi = Pick<InsightsStore, keyof InsightsStore>
+export type FeedbackStoreApi = Pick<FeedbackStore, keyof FeedbackStore>
 export type SessionsStoreApi = Pick<SessionsStore, keyof SessionsStore>
 export type WatchStoreApi = Pick<WatchStore, keyof WatchStore>
 export type SourceStoreApi = Pick<SourceStore, keyof SourceStore>

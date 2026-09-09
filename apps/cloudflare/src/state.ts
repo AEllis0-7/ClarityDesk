@@ -14,12 +14,16 @@ import type { BindingStoreApi } from '../../api/src/bindings.ts'
 import type { EnrichmentStoreApi } from '../../api/src/enrichments.ts'
 import type { KgProposalStoreApi } from '../../api/src/kg.ts'
 import type { Suggestion, SuggestionStoreApi } from '../../api/src/interrogate.ts'
+import { summariseFeedback } from '../../api/src/stores.ts'
 import type {
+  AnswerFeedback,
   AskInsight,
   EnrichmentCollisionPolicy,
   EnrichmentImportResult,
   EnrichmentRecords,
   EvidenceItem,
+  FeedbackStoreApi,
+  FeedbackSummary,
   InsightsStoreApi,
   InsightsSummary,
   Investigation,
@@ -651,6 +655,28 @@ export class DurableInsightsStore implements InsightsStoreApi {
   }
 }
 
+export class DurableFeedbackStore implements FeedbackStoreApi {
+  constructor(private readonly state: DurableState) {}
+
+  private all(slug: string): AnswerFeedback[] {
+    return this.state.get(key('feedback', slug), [])
+  }
+
+  /**
+   * One row per learning id: a reader who clicks a thumb and then sends
+   * written detail posts twice, and that is one verdict, not two.
+   */
+  record(slug: string, entry: AnswerFeedback): void {
+    const all = this.all(slug).filter((item) => item.learningId !== entry.learningId)
+    all.push(entry)
+    this.state.put(key('feedback', slug), all.slice(-50_000))
+  }
+
+  summary(slug: string, days = 90): FeedbackSummary {
+    return summariseFeedback(this.all(slug), days)
+  }
+}
+
 export class DurableSessionsStore implements SessionsStoreApi {
   constructor(private readonly state: DurableState) {}
 
@@ -1112,6 +1138,7 @@ export interface DurableStores {
   bindings: DurableBindingStore
   tenants: DurableTenantStore
   insights: DurableInsightsStore
+  feedback: DurableFeedbackStore
   sessions: DurableSessionsStore
   watches: DurableWatchStore
   sources: DurableSourceStore
@@ -1132,6 +1159,7 @@ export function durableStores(
     bindings: new DurableBindingStore(state, env),
     tenants: new DurableTenantStore(state),
     insights: new DurableInsightsStore(state),
+    feedback: new DurableFeedbackStore(state),
     sessions: new DurableSessionsStore(state),
     watches: new DurableWatchStore(state),
     sources: new DurableSourceStore(state),
