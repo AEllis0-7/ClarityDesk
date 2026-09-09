@@ -156,6 +156,25 @@ Fonts, the corners are 4px, and the header is white with the blue logo.
   Appearance on the local instance (it lives in `data/branding`, not the repo); production needs
   the same upload.
 
+## Objections and the product lexicon (9 September 2026)
+
+- **`home.objections`** on `TenantConfig`: the pushbacks a customer raises, worded as they say
+  them, rendered as their own group on the counter home after the situation groups ("When the
+  customer pushes back"). ClarityDesk carries eight, each checked live against the box before
+  it went in; a pushback the guides cannot answer (price against online sellers) is left out
+  rather than handed to the model.
+- **`entityTerms`** seeded with every product family, coating and range the guides cover
+  (SmartLife, ClearView, DuraVision, Crizal, Varilux XR, Stellest, Transitions GEN S, ...). The
+  retrieval pin resolves a named product to its guide, and the question-clause decomposition
+  already turns "How does Varilux XR compare with SmartLife Individual?" into per-product
+  searches. Note that `comparisonEntities` counts only medication-shaped lexicon terms, by
+  design for the clinical portal; product names go through the pin and the clauses instead.
+- **The box has grown.** On 9 September it held 123 resources: the 55 enriched, labelled
+  vendor guides plus 68 open-access papers, ABDO and GOC documents and the WHO vision report,
+  all unenriched and untagged (raw filenames in the Library, no topic). Three of the 68 are the
+  corpus folder's own `README`, `manifest` and `links-to-ingest` files and should be removed
+  from the box. Re-run enrichment (scope: missing) and analysis once the set is final.
+
 ## Next steps, in order
 
 1. **Confidence for non-experts - remaining.** The wording above is a first pass; watch real

@@ -456,6 +456,13 @@ export const TenantConfigSchema = z.object({
       /** The search the chip runs; defaults to the label. */
       query: z.string().min(1).optional(),
     }).array().optional(),
+    /**
+     * What customers push back with ("Will progressives give me
+     * headaches?"), asked as the customer says it. Shown as their own group
+     * after the situation groups, because the adviser meets them mid-sale,
+     * not at the start of one.
+     */
+    objections: QuestionSchema.array().optional(),
   }).optional(),
   /** Extraction routing rules (docs/EXTRACTION-LAB.md). Absent = platform default for everything. */
   extraction: ExtractionRulesSchema.optional(),
