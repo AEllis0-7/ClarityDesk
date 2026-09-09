@@ -1801,12 +1801,16 @@ export async function bindAndAudit(raw: BindAndAuditInput): Promise<BindAndAudit
     .filter((r) => !rescuedAnswer || r.figures.length > 0)
   const figuresRemovedFromText = [...new Set(removedForNote.flatMap((r) => r.figures))]
 
+  // The plain register's reader gets the same audit in the quality control,
+  // in their own words; the denominator and uncited-sentence footnotes are
+  // the research register's voice and stay out of the answer body there.
+  const plainRegister = config.answerRegister === 'plain'
   if (text.trim()) {
     text += auditAddendum({
       missingDrugs,
       missingNumbers: figuresUnsupported,
       missingYears,
-      denominators,
+      denominators: plainRegister ? [] : denominators,
       designs,
       attributions: attributed.fixes,
       notes: [
@@ -1815,7 +1819,7 @@ export async function bindAndAudit(raw: BindAndAuditInput): Promise<BindAndAudit
           replaced: replaced.length,
         }),
         blankedNote(gated.blanked, unreadableCells.marked),
-        uncitedNote(gated.sentences) || undefined,
+        plainRegister ? undefined : uncitedNote(gated.sentences) || undefined,
         ...offered,
         protocolNote,
         effectSizeNote(effectSizes),

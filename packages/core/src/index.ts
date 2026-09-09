@@ -451,6 +451,15 @@ export const TenantConfigSchema = z.object({
    */
   askPrompt: z.string().min(1).optional(),
   /**
+   * Who the answers are written for. `research` (the default) is the analyst
+   * register: denominators beside every proportion, the REMi meters and the
+   * figure audit in the reader's face. `plain` is for a reader who is not a
+   * researcher - a salesperson at a counter - so the prompt drops the
+   * denominator rule and the answer's confidence reads as which guides back
+   * it and whether to check before repeating it, not as a score.
+   */
+  answerRegister: z.enum(['research', 'plain']).optional(),
+  /**
    * How corpus analysis should design this portal. Absent means the generic
    * research-portal design: topics that partition the corpus however the
    * model sees it, and researcher-style suggested questions.

@@ -120,9 +120,26 @@ though it runs on one: every decision below follows from that reader.
   `apps/web/dist` inside OneDrive; building the stylesheet to a temp path and copying it in
   works, and `deno task dev`'s own start-up build is unaffected.
 
+## Plain answer register (9 September 2026)
+
+- **`answerRegister: 'plain'`** on `TenantConfig`. Three effects, one underlying confidence state:
+  the denominator rule is left out of the prompt preamble (the population rule stays); the
+  figure-audit badge stays off the answer row; and the quality control speaks in guides -
+  "Backed by 3 guides" when the audit found every figure, "Backed by 3 guides - check figures"
+  on a moderate answer, "Check with the optometrist" on a weak one, "Cites 2 guides - not
+  checked" when nothing was scored. The panel lists the cited guide titles instead of the REMi
+  meters. `plainConfidence` in `apps/web/src/lib/confidence.ts` is the pure mapping.
+- **The "Try asking:" line no longer counts as an uncited claim.** `assertsFinding` treats a
+  question, or a line starting "Try asking", as the portal talking to its reader, so the
+  "one sentence carries no citation" footnote disappears from every ClarityDesk answer that
+  ends properly. This is register-independent: it was wrong in the research register too.
+
 ## Next steps, in order
 
-1. **Confidence for non-experts.** Decide what the adviser should see instead of a REMi meter:
+1. **Confidence for non-experts - remaining.** The wording above is a first pass; watch real
+   answers for a week and tune. Maker logos beside the guide titles need a maker field on the
+   enrichment schema (a "lens" agent), which is Phase 2 of enrichments upstream.
+2. **Confidence for non-experts (original note).** Decide what the adviser should see instead of a REMi meter:
    probably "Backed by Zeiss and Hoya guides" with the source logos, and a quiet "check with the
    optometrist" line when the audit finds an uncited sentence.
 4. **Rotate the box token** and consider turning off anonymous reads on the box before the URL is

@@ -3686,7 +3686,9 @@ export class AragProvider implements RetrievalProvider {
       // Nuclia's default RAG prompt answers "Not enough data to answer this."
       // as a guardrail even when relevant sources were retrieved - override it.
       prompt: {
-        system: variantPreamble(intent?.answer.promptVariant) + (opts.systemPrompt?.trim() ||
+        system: variantPreamble(intent?.answer.promptVariant, {
+          denominators: tenant.answerRegister !== 'plain',
+        }) + (opts.systemPrompt?.trim() ||
           (opts.docScope
             ? `You are the help assistant for the ${tenant.branding.productName} research ` +
               'portal. Answer the user\'s "how do I..." question about using the portal, using ' +

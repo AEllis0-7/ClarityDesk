@@ -72,10 +72,22 @@ export const DESIGN_RULE =
 
 const WITH_DENOMINATORS = new Set<PromptVariant>(['default', 'safety', 'data'])
 
-export function variantPreamble(variant: PromptVariant | undefined): string {
+/**
+ * The rules prepended to every answer prompt. `denominators: false` leaves
+ * the denominator rule out for a portal in the plain register, whose reader
+ * wants "8 out of 10 wearers" and never "(n = 169, full analysis set)"; the
+ * population rule stays, because a figure sold for the wrong group is wrong
+ * in any register.
+ */
+export function variantPreamble(
+  variant: PromptVariant | undefined,
+  opts: { denominators?: boolean } = {},
+): string {
   const parts: string[] = []
   if (variant && variant !== 'default') parts.push(PROMPT_VARIANTS[variant])
-  if (WITH_DENOMINATORS.has(variant ?? 'default')) parts.push(DENOMINATOR_RULE)
+  if (opts.denominators !== false && WITH_DENOMINATORS.has(variant ?? 'default')) {
+    parts.push(DENOMINATOR_RULE)
+  }
   parts.push(POPULATION_RULE)
   if (variant === 'safety') parts.push(DESIGN_RULE)
   return parts.length > 0 ? parts.join(' ') + '\n\n' : ''

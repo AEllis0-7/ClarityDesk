@@ -1,6 +1,47 @@
 import { describe, it } from '@std/testing/bdd'
 import { expect } from '@std/expect'
-import { assessConfidence, isThinlyGrounded } from './confidence.ts'
+import { assessConfidence, isThinlyGrounded, plainConfidence } from './confidence.ts'
+
+describe('plainConfidence', () => {
+  const audited = {
+    figuresChecked: 2,
+    figuresUnsupported: [],
+    yearsUnsupported: [],
+    contraindicationsUnsupported: [],
+    sentencesChecked: 4,
+    sentencesCited: 4,
+  }
+
+  it('names the guides behind a well-checked answer and says it is safe to repeat', () => {
+    const plain = plainConfidence(assessConfidence(undefined, audited), 3, audited)
+    expect(plain).toMatchObject({ label: 'Backed by 3 guides', tone: 'quiet', check: false })
+    expect(plain.detail).toContain('Safe to repeat')
+  })
+
+  it('tells the adviser to check figures on a moderate answer', () => {
+    const plain = plainConfidence(
+      assessConfidence({ answerRelevance: 5, groundedness: 3, contextRelevance: 3 }),
+      1,
+    )
+    expect(plain.label).toBe('Backed by 1 guide - check figures')
+    expect(plain).toMatchObject({ tone: 'warn', check: true })
+  })
+
+  it('sends a weakly grounded answer to the optometrist', () => {
+    const plain = plainConfidence(
+      assessConfidence({ answerRelevance: 5, groundedness: 2, contextRelevance: 2 }),
+      3,
+    )
+    expect(plain.label).toBe('Check with the optometrist')
+    expect(plain).toMatchObject({ tone: 'bad', check: true })
+  })
+
+  it('never reads as checked when nothing was scored', () => {
+    const plain = plainConfidence(assessConfidence(undefined), 2)
+    expect(plain.label).toBe('Cites 2 guides - not checked')
+    expect(plain.check).toBe(true)
+  })
+})
 
 describe('assessConfidence', () => {
   describe('unscored', () => {
