@@ -22,6 +22,7 @@ import { HowItWorksPage } from './pages/HowItWorksPage.tsx'
 import { ToolsPage } from './pages/ToolsPage.tsx'
 import { TaxonomyPage } from './pages/TaxonomyPage.tsx'
 import { EntityPage } from './pages/EntityPage.tsx'
+import { ExplainerPage } from './pages/ExplainerPage.tsx'
 import { NotFoundPage, RootNotFound } from './pages/NotFoundPage.tsx'
 
 const queryClient = new QueryClient({
@@ -91,6 +92,7 @@ createRoot(container).render(
               <Route path='help/:pageId' element={<DocsPage />} />
               <Route path='how-it-works' element={<HowItWorksPage />} />
               <Route path='entity/:name' element={<EntityPage />} />
+              <Route path='range/:family' element={<ExplainerPage />} />
               <Route path='taxonomy' element={<TaxonomyPage />} />
               <Route path='manage' element={<ManagePage />} />
               {/* Catch-all inside a portal: a friendly not-found with the chrome intact. */}

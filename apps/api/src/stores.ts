@@ -2,6 +2,7 @@ import { appendFileSync, mkdirSync, readdirSync, readFileSync, rmSync } from 'no
 import { dirname, join } from 'node:path'
 import process from 'node:process'
 import type { Enrichment } from '@research-portal/core'
+import type { Explainer } from './explainer.ts'
 import { EnrichmentStore } from './enrichments.ts'
 import { readJsonSafe, writeJsonAtomic } from './persist.ts'
 
@@ -236,6 +237,39 @@ export function summariseFeedback(entries: AnswerFeedback[], days = 90): Feedbac
     bad: all.filter((f) => !f.good).length,
     needsWork,
     recent: all.slice(-25).reverse(),
+  }
+}
+
+// --- Product explainer cards -------------------------------------------------
+
+/**
+ * Generated explainer cards, one per product family. A card costs a
+ * structured generation to build, so it is written once and served from
+ * here until somebody asks for it to be rebuilt - a shop that opens the
+ * same card forty times a day should be billed for one.
+ */
+export class ExplainerStore {
+  private pathFor(slug: string): string {
+    return join(DATA_DIR, 'explainers', `${safeSegment(slug)}.json`)
+  }
+
+  private all(slug: string): Record<string, Explainer> {
+    return readJson<Record<string, Explainer>>(this.pathFor(slug), {})
+  }
+
+  get(slug: string, key: string): Explainer | undefined {
+    return this.all(slug)[key]
+  }
+
+  put(slug: string, key: string, card: Explainer): void {
+    const all = this.all(slug)
+    all[key] = card
+    writeJson(this.pathFor(slug), all)
+  }
+
+  /** Every card the portal has built, for the Manage list. */
+  list(slug: string): Record<string, Explainer> {
+    return this.all(slug)
   }
 }
 
@@ -703,6 +737,7 @@ export class McpKeyStore {
 /** Public store contracts used by runtimes without a local filesystem. */
 export type InsightsStoreApi = Pick<InsightsStore, keyof InsightsStore>
 export type FeedbackStoreApi = Pick<FeedbackStore, keyof FeedbackStore>
+export type ExplainerStoreApi = Pick<ExplainerStore, keyof ExplainerStore>
 export type SessionsStoreApi = Pick<SessionsStore, keyof SessionsStore>
 export type WatchStoreApi = Pick<WatchStore, keyof WatchStore>
 export type SourceStoreApi = Pick<SourceStore, keyof SourceStore>

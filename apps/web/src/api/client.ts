@@ -84,6 +84,10 @@ const ERROR_COPY: Record<string, string> = {
   summarize_failed: 'The summary could not be generated - try fewer documents or try again.',
   empty_summary: 'The platform returned an empty summary - try different documents.',
   feedback_failed: 'The feedback could not be sent - try again shortly.',
+  unknown_family: 'This portal does not list that range.',
+  insufficient_grounding:
+    'There is not enough in the guides about this range to write a card from - add a guide that covers it.',
+  explainer_failed: 'The card could not be built - try again shortly.',
   internal_error: 'Something went wrong on our side - try again shortly.',
   invalid_request: 'The request was not valid - check the details and try again.',
   invalid_query: 'The request was not valid - check the details and try again.',
@@ -1187,6 +1191,27 @@ export interface InsightsSummary {
 
 export function getInsights(slug: string, passcode: string): Promise<InsightsSummary> {
   return adminRequest(`/api/admin/t/${encodeURIComponent(slug)}/insights`, passcode)
+}
+
+// --- Product explainer cards --------------------------------------------------
+
+export interface Explainer {
+  family: string
+  summary: string
+  whoFor: string
+  notice: string[]
+  costMore: string
+  askFirst: string[]
+  notCovered?: string
+  sources: { id: string; title: string }[]
+  generatedAt: string
+}
+
+/** One family's card. Built on the server the first time it is asked for. */
+export function getExplainer(slug: string, family: string): Promise<Explainer> {
+  return clientRequest(
+    `/api/t/${encodeURIComponent(slug)}/explainer/${encodeURIComponent(family)}`,
+  )
 }
 
 // --- Admin: answer feedback --------------------------------------------------

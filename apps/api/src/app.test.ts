@@ -23,6 +23,7 @@ import { TenantStore } from './tenants.ts'
 import { tenantsWithNeuro } from './fixtures/neuro-tenant.ts'
 import { EnrichmentStore } from './enrichments.ts'
 import type { AnswerFeedback } from './stores.ts'
+import type { Explainer } from './explainer.ts'
 import type { PortalDomainProvisioner } from './cloudflare-domains.ts'
 
 // Hermetic tenant store - tests must never read the repo's live data/tenants.json.
@@ -2822,5 +2823,111 @@ describe('answer feedback', () => {
     })
     expect(authorised.status).toBe(200)
     expect(await authorised.json()).toMatchObject({ total: 0, needsWork: [] })
+  })
+})
+
+describe('product explainer cards', () => {
+  const passcode = 'test-passcode'
+
+  const card = {
+    summary: 'A range built for people who switch between a phone and the street.',
+    whoFor: 'Someone on a screen most of the day.',
+    notice: ['Easier switching between near and far'],
+    costMore: 'The maker says the design is tuned to the wearer.',
+    askFirst: ['How long are you on a screen?'],
+    notCovered: '',
+  }
+
+  /** An in-memory cache, so a test needs no volume. */
+  function memoryExplainers() {
+    const cards = new Map<string, Explainer>()
+    return {
+      cards,
+      store: {
+        get: (_slug: string, key: string) => cards.get(key),
+        put: (_slug: string, key: string, value: Explainer) => {
+          cards.set(key, value)
+        },
+        list: () => Object.fromEntries(cards),
+      },
+    }
+  }
+
+  function build(opts: { generations: { count: number }; grounded?: boolean }) {
+    const explainers = memoryExplainers()
+    const app = buildApp({
+      provider: new StubProvider(),
+      tenants: freshTenants(),
+      adminPasscode: passcode,
+      explainers: explainers.store,
+      management: {
+        askStructured: () => {
+          opts.generations.count += 1
+          return Promise.resolve({
+            object: card,
+            sources: [{ id: 'r1', title: 'A guide', relevance: 0.9 }],
+            insufficientGrounding: opts.grounded === false,
+            passagesByResource: {},
+          })
+        },
+      } as unknown as AragProvider,
+    })
+    return { app, explainers }
+  }
+
+  it('builds a card once and serves it from the cache after that', async () => {
+    const generations = { count: 0 }
+    const { app } = build({ generations })
+
+    const first = await app.request('/api/t/claritydesk/explainer/zeiss-smartlife')
+    const second = await app.request('/api/t/claritydesk/explainer/zeiss-smartlife')
+
+    expect(first.status).toBe(200)
+    expect(second.status).toBe(200)
+    expect(generations.count).toBe(1)
+    const body = await second.json()
+    expect(body).toMatchObject({ family: 'Zeiss SmartLife', summary: card.summary })
+    expect(body.sources).toEqual([{ id: 'r1', title: 'A guide' }])
+  })
+
+  it('rebuilds only for an administrator, so nobody can run up the bill', async () => {
+    const generations = { count: 0 }
+    const { app } = build({ generations })
+    await app.request('/api/t/claritydesk/explainer/zeiss-smartlife')
+
+    const anonymous = await app.request('/api/t/claritydesk/explainer/zeiss-smartlife?refresh=1')
+    expect(anonymous.status).toBe(401)
+    expect(generations.count).toBe(1)
+
+    const administrator = await app.request(
+      '/api/t/claritydesk/explainer/zeiss-smartlife?refresh=1',
+      {
+        headers: { 'x-admin-passcode': passcode },
+      },
+    )
+    expect(administrator.status).toBe(200)
+    expect(generations.count).toBe(2)
+  })
+
+  it('404s a range the portal does not list, without generating anything', async () => {
+    const generations = { count: 0 }
+    const { app } = build({ generations })
+
+    const response = await app.request('/api/t/claritydesk/explainer/a-range-nobody-sells')
+
+    expect(response.status).toBe(404)
+    expect(await response.json()).toEqual({ error: 'unknown_family' })
+    expect(generations.count).toBe(0)
+  })
+
+  it('says the guides are too thin rather than inventing a card', async () => {
+    const generations = { count: 0 }
+    const { app, explainers } = build({ generations, grounded: false })
+
+    const response = await app.request('/api/t/claritydesk/explainer/zeiss-smartlife')
+
+    expect(response.status).toBe(422)
+    expect(await response.json()).toMatchObject({ error: 'insufficient_grounding' })
+    expect(explainers.cards.size).toBe(0)
   })
 })

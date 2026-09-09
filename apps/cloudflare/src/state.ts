@@ -14,6 +14,7 @@ import type { BindingStoreApi } from '../../api/src/bindings.ts'
 import type { EnrichmentStoreApi } from '../../api/src/enrichments.ts'
 import type { KgProposalStoreApi } from '../../api/src/kg.ts'
 import type { Suggestion, SuggestionStoreApi } from '../../api/src/interrogate.ts'
+import type { Explainer } from '../../api/src/explainer.ts'
 import { summariseFeedback } from '../../api/src/stores.ts'
 import type {
   AnswerFeedback,
@@ -22,6 +23,7 @@ import type {
   EnrichmentImportResult,
   EnrichmentRecords,
   EvidenceItem,
+  ExplainerStoreApi,
   FeedbackStoreApi,
   FeedbackSummary,
   InsightsStoreApi,
@@ -677,6 +679,28 @@ export class DurableFeedbackStore implements FeedbackStoreApi {
   }
 }
 
+export class DurableExplainerStore implements ExplainerStoreApi {
+  constructor(private readonly state: DurableState) {}
+
+  private all(slug: string): Record<string, Explainer> {
+    return this.state.get(key('explainers', slug), {})
+  }
+
+  get(slug: string, family: string): Explainer | undefined {
+    return this.all(slug)[family]
+  }
+
+  put(slug: string, family: string, card: Explainer): void {
+    const all = this.all(slug)
+    all[family] = card
+    this.state.put(key('explainers', slug), all)
+  }
+
+  list(slug: string): Record<string, Explainer> {
+    return this.all(slug)
+  }
+}
+
 export class DurableSessionsStore implements SessionsStoreApi {
   constructor(private readonly state: DurableState) {}
 
@@ -1139,6 +1163,7 @@ export interface DurableStores {
   tenants: DurableTenantStore
   insights: DurableInsightsStore
   feedback: DurableFeedbackStore
+  explainers: DurableExplainerStore
   sessions: DurableSessionsStore
   watches: DurableWatchStore
   sources: DurableSourceStore
@@ -1160,6 +1185,7 @@ export function durableStores(
     tenants: new DurableTenantStore(state),
     insights: new DurableInsightsStore(state),
     feedback: new DurableFeedbackStore(state),
+    explainers: new DurableExplainerStore(state),
     sessions: new DurableSessionsStore(state),
     watches: new DurableWatchStore(state),
     sources: new DurableSourceStore(state),
