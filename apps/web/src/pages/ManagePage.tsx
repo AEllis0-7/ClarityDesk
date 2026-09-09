@@ -11,6 +11,7 @@ import { BehaviourPanel } from './admin/BehaviourPanel.tsx'
 import { ExtractionPanel } from './admin/ExtractionPanel.tsx'
 import { CorpusHealthPanel } from './admin/CorpusHealthPanel.tsx'
 import { EnrichmentsPanel } from './admin/EnrichmentsPanel.tsx'
+import { FeedbackPanel } from './admin/FeedbackPanel.tsx'
 import { InsightsPanel } from './admin/InsightsPanel.tsx'
 import { KgPanel } from './admin/KgPanel.tsx'
 import { LabelsetsPanel } from './admin/LabelsetsPanel.tsx'
@@ -24,6 +25,7 @@ import { getAuthSession, microsoftLoginUrl } from '../api/auth.ts'
 type TabId =
   | 'overview'
   | 'insights'
+  | 'feedback'
   | 'content'
   | 'enrichments'
   | 'taxonomy'
@@ -36,6 +38,7 @@ type TabId =
 const TABS: { id: TabId; label: string }[] = [
   { id: 'overview', label: 'Overview' },
   { id: 'insights', label: 'Insights' },
+  { id: 'feedback', label: 'Feedback' },
   { id: 'content', label: 'Content' },
   { id: 'enrichments', label: 'Enrichments' },
   { id: 'taxonomy', label: 'Taxonomy' },
@@ -277,6 +280,12 @@ export function ManagePage() {
                         </Link>
                       </p>
                     )}
+                </div>
+              )}
+
+              {tab === 'feedback' && (
+                <div className='rp-card p-5'>
+                  <FeedbackPanel slug={slug} passcode={adminCredential} />
                 </div>
               )}
 

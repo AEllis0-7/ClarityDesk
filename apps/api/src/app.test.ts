@@ -22,6 +22,7 @@ import { buildApp } from './app.ts'
 import { TenantStore } from './tenants.ts'
 import { tenantsWithNeuro } from './fixtures/neuro-tenant.ts'
 import { EnrichmentStore } from './enrichments.ts'
+import type { AnswerFeedback } from './stores.ts'
 import type { PortalDomainProvisioner } from './cloudflare-domains.ts'
 
 // Hermetic tenant store - tests must never read the repo's live data/tenants.json.
@@ -2721,5 +2722,105 @@ describe('POST /api/t/:slug/ask loop 5 follow-ups and terse questions (D5-05, D5
     const done = events.find((e) => e.type === 'done')
     expect(done && done.type === 'done' ? done.refused : true).toBeFalsy()
     expect(events.some((e) => e.type === 'fallback')).toBe(true)
+  })
+})
+
+describe('answer feedback', () => {
+  const passcode = 'test-passcode'
+
+  /** A store that keeps its entries in memory, so a test needs no volume. */
+  function memoryFeedback() {
+    const entries: AnswerFeedback[] = []
+    return {
+      entries,
+      store: {
+        record: (_slug: string, entry: AnswerFeedback) => {
+          entries.push(entry)
+        },
+        summary: () => ({ total: entries.length, good: 0, bad: 0, needsWork: [], recent: [] }),
+      },
+    }
+  }
+
+  const body = {
+    learningId: 'learning-12345',
+    good: false,
+    text: 'It hedged.',
+    question: 'Are blue light lenses worth it?',
+    citedTitles: ['Evaluating Blue-Light Filtering Spectacle Lenses'],
+  }
+
+  it('logs the question and the cited guides alongside the platform verdict', async () => {
+    const sent: unknown[] = []
+    const feedback = memoryFeedback()
+    const app = buildApp({
+      provider: new StubProvider(),
+      tenants: freshTenants(),
+      adminPasscode: passcode,
+      feedback: feedback.store,
+      management: {
+        feedback: (_t: unknown, input: unknown) => {
+          sent.push(input)
+          return Promise.resolve()
+        },
+      } as unknown as AragProvider,
+    })
+
+    const response = await app.request('/api/t/neuro/feedback', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify(body),
+    })
+
+    expect(response.status).toBe(200)
+    expect(sent).toHaveLength(1)
+    expect(feedback.entries).toHaveLength(1)
+    expect(feedback.entries[0]).toMatchObject({
+      learningId: 'learning-12345',
+      good: false,
+      text: 'It hedged.',
+      question: 'Are blue light lenses worth it?',
+      citedTitles: ['Evaluating Blue-Light Filtering Spectacle Lenses'],
+    })
+  })
+
+  it("keeps the reader's verdict when the platform refuses it", async () => {
+    const feedback = memoryFeedback()
+    const app = buildApp({
+      provider: new StubProvider(),
+      tenants: freshTenants(),
+      adminPasscode: passcode,
+      feedback: feedback.store,
+      management: {
+        feedback: () => Promise.reject(new Error('platform down')),
+      } as unknown as AragProvider,
+    })
+
+    const response = await app.request('/api/t/neuro/feedback', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify(body),
+    })
+
+    expect(response.status).toBe(502)
+    expect(feedback.entries).toHaveLength(1)
+  })
+
+  it('serves the summary to an administrator and nobody else', async () => {
+    const app = buildApp({
+      provider: new StubProvider(),
+      tenants: freshTenants(),
+      adminPasscode: passcode,
+      feedback: memoryFeedback().store,
+    })
+
+    const anonymous = await app.request('/api/admin/t/neuro/feedback')
+    expect(anonymous.status).toBe(401)
+
+    const authorised = await app.request('/api/admin/t/neuro/feedback', {
+      headers: { 'x-admin-passcode': passcode },
+    })
+    expect(authorised.status).toBe(200)
+    expect(await authorised.json()).toMatchObject({ total: 0, needsWork: [] })
   })
 })

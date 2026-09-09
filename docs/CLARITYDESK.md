@@ -205,17 +205,31 @@ Fonts, the corners are 4px, and the header is white with the blue logo.
   replaced by `screens-driving-glare` and `sun-uv-light-adaptive`, plus the new
   `measurements-fit`; the suggested questions were remapped onto them.
 
+## Answer feedback in Manage (9 September 2026)
+
+- The thumbs under every answer went to the platform's learning loop and nowhere else: that
+  loop is write-only from here, so nothing came back that an administrator could read. The
+  portal now keeps its own log (`FeedbackStore`, one JSONL per portal; `DurableFeedbackStore`
+  on the worker), and Manage has a **Feedback** tab: how many answers were rated, the questions
+  marked unhelpful worst-first with whatever the reader wrote, and the recent verdicts with the
+  guides each answer was citing.
+- The thumb now carries the question and the cited guide titles with it. A verdict on its own
+  told an administrator nothing they could act on.
+- The log is written before the platform call, so a reader's verdict survives an unreachable
+  platform, and it is keyed on the learning id, so a thumb followed by written detail counts
+  once rather than twice.
+
 ## Next steps, in order
 
-1. **Answer feedback from the floor.** The thumbs on every answer already reach the platform;
-   surfacing them in Manage gives the list of questions the corpus answers badly, which matters
-   more now the corpus is 120 documents rather than 55.
-2. **Product explainer cards.** See the ideas below - the largest visible feature still open.
-3. **Confidence for non-experts - remaining.** The plain-register wording is a first pass; watch
+1. **Product explainer cards.** See the ideas below - the largest visible feature still open.
+2. **Confidence for non-experts - remaining.** The plain-register wording is a first pass; watch
    real answers for a week and tune. Maker logos beside the guide titles need a maker field on
    the enrichment schema (a "lens" agent), which is Phase 2 of enrichments upstream.
-4. **Rotate the box token** and consider turning off anonymous reads on the box before the URL is
+3. **Rotate the box token** and consider turning off anonymous reads on the box before the URL is
    shared with anyone.
+4. **Ingest the in-app documentation.** Health reports `docsOk: false` for ClarityDesk because
+   the box holds no CorpusKit help pages, so the Help assistant answers nothing. One call fixes
+   it: `POST /api/admin/t/claritydesk/docs/ingest`. It does not affect portal answers.
 
 ## Ideas worth building
 

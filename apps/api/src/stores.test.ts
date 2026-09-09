@@ -5,9 +5,10 @@ import { expect } from '@std/expect'
 // DATA_DIR is read at module load, so point it at a temp dir before importing.
 const dir = await Deno.makeTempDir()
 Deno.env.set('DATA_DIR', dir)
-const { InsightsStore, McpKeyStore, SessionsStore, SourceStore, WatchStore } = await import(
-  './stores.ts'
-)
+const { FeedbackStore, InsightsStore, McpKeyStore, SessionsStore, SourceStore, WatchStore } =
+  await import(
+    './stores.ts'
+  )
 const { readJsonSafe, writeFileAtomic, writeJsonAtomic } = await import('./persist.ts')
 const { BindingStore } = await import('./bindings.ts')
 
@@ -170,4 +171,67 @@ Deno.test('BindingStore quarantines a corrupted bindings file and falls back to 
     e.name.startsWith('bindings.json.corrupt-')
   )
   expect(quarantined).toBeDefined()
+})
+
+Deno.test('feedback summary ranks the questions readers marked unhelpful', () => {
+  const store = new FeedbackStore()
+  const ts = new Date().toISOString()
+  store.record('fb1', {
+    ts,
+    learningId: 'l1',
+    good: false,
+    question: 'Are blue light lenses worth it?',
+    citedTitles: ['Evaluating Blue-Light Filtering Spectacle Lenses'],
+  })
+  store.record('fb1', {
+    ts,
+    learningId: 'l2',
+    good: false,
+    question: 'are blue light lenses worth it',
+    text: 'It hedged so much I could not say anything to the customer.',
+  })
+  store.record('fb1', { ts, learningId: 'l3', good: true, question: 'What is a progressive lens?' })
+
+  const summary = store.summary('fb1')
+
+  expect(summary).toMatchObject({ total: 3, good: 1, bad: 2 })
+  expect(summary.needsWork).toHaveLength(1)
+  expect(summary.needsWork[0]).toMatchObject({ bad: 2, good: 0 })
+  expect(summary.needsWork[0]?.notes).toEqual([
+    'It hedged so much I could not say anything to the customer.',
+  ])
+  expect(summary.recent[0]?.question).toBe('What is a progressive lens?')
+})
+
+Deno.test('feedback counts a thumb and its written detail as one verdict', () => {
+  const store = new FeedbackStore()
+  const ts = new Date().toISOString()
+  const entry = { ts, learningId: 'same', good: false, question: 'Which coating is toughest?' }
+  store.record('fb2', entry)
+  store.record('fb2', { ...entry, text: 'It never named a coating.' })
+
+  const summary = store.summary('fb2')
+
+  expect(summary).toMatchObject({ total: 1, bad: 1 })
+  expect(summary.needsWork[0]?.notes).toEqual(['It never named a coating.'])
+})
+
+Deno.test('feedback ignores entries older than the window and survives a torn line', () => {
+  const store = new FeedbackStore()
+  const old = new Date(Date.now() - 200 * 24 * 3600 * 1000).toISOString()
+  store.record('fb3', { ts: old, learningId: 'old', good: false, question: 'Ancient?' })
+  store.record('fb3', {
+    ts: new Date().toISOString(),
+    learningId: 'new',
+    good: true,
+    question: 'Recent?',
+  })
+  writeFileSync(join(dir, 'feedback', 'fb3.jsonl'), '{"ts":"2026-01-01T00:00:00Z"\n', {
+    flag: 'a',
+  })
+
+  const summary = store.summary('fb3')
+
+  expect(summary).toMatchObject({ total: 1, good: 1, bad: 0 })
+  expect(summary.needsWork).toEqual([])
 })
