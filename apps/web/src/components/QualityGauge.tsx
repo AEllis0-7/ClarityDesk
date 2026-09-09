@@ -6,7 +6,7 @@ import {
   useState,
 } from 'react'
 import { createPortal } from 'react-dom'
-import { assessConfidence, type ConfidenceState } from '../lib/confidence.ts'
+import { assessConfidence, type ConfidenceState, plainConfidence } from '../lib/confidence.ts'
 import { type AnswerAudit, figureLabel } from '../lib/answer-marks.ts'
 import { useCompactViewport } from './useViewMode.ts'
 
@@ -419,6 +419,14 @@ export interface AnswerQualityDisclosureProps {
    * action to go with it.
    */
   sparselyGrounded?: boolean
+  /**
+   * The portal's answer register. `plain` speaks in guides and "check before
+   * promising" for a reader who is not a researcher: no REMi meters, no
+   * figure counts, the same underlying state.
+   */
+  register?: 'research' | 'plain'
+  /** Titles of the sources the answer actually cites, for the plain register's panel. */
+  citedTitles?: string[]
 }
 
 /**
@@ -492,7 +500,14 @@ export function auditSummary(audit: AnswerAudit | undefined): string | null {
 }
 
 export function AnswerQualityDisclosure(
-  { quality, audit, onReanswerDeeply, sparselyGrounded = false }: AnswerQualityDisclosureProps,
+  {
+    quality,
+    audit,
+    onReanswerDeeply,
+    sparselyGrounded = false,
+    register = 'research',
+    citedTitles = [],
+  }: AnswerQualityDisclosureProps,
 ) {
   const [open, setOpen] = useState(false)
   const rootRef = useRef<HTMLDivElement | null>(null)
@@ -554,11 +569,21 @@ export function AnswerQualityDisclosure(
 
   const confidence = assessConfidence(quality, audit)
   const audited = auditSummary(audit)
-  const detail = confidence.basis === 'audit' && audited
+  // The plain register keeps the state and changes only the words and how
+  // loud they are, so it can never read as safer than the research headline.
+  const plain = register === 'plain' ? plainConfidence(confidence, citedTitles.length, audit) : null
+  const label = plain?.label ?? confidence.label
+  const detail = plain
+    ? plain.detail
+    : confidence.basis === 'audit' && audited
     ? `Checked against the cited texts: ${audited.charAt(0).toLowerCase()}${audited.slice(1)}`
     : CONFIDENCE_DETAIL[confidence.state]
-  const { tone, labelled } = TRIGGER_TONE[confidence.state]
+  const { tone, labelled } = plain
+    ? { tone: plain.tone, labelled: plain.tone !== 'quiet' }
+    : TRIGGER_TONE[confidence.state]
   const loud = tone !== 'quiet'
+  const shownTitles = citedTitles.slice(0, 4)
+  const moreTitles = citedTitles.length - shownTitles.length
 
   const glyph = (size: GlyphSize) =>
     loud
@@ -577,12 +602,34 @@ export function AnswerQualityDisclosure(
           {glyph('md')}
         </span>
         <div className='min-w-0'>
-          <p className='text-sm font-semibold text-ink'>{confidence.label}</p>
+          <p className='text-sm font-semibold text-ink'>{label}</p>
           <p className='mt-1 text-xs leading-relaxed text-ink-2'>{detail}</p>
         </div>
       </div>
 
-      {quality
+      {plain && shownTitles.length > 0
+        ? (
+          <div className='mt-3 rounded-[var(--rp-radius)] border border-line bg-surface-2 px-3 py-2.5'>
+            <p className='rp-eyebrow text-ink-3'>The guides behind it</p>
+            <ul className='mt-1.5 space-y-1'>
+              {shownTitles.map((title) => (
+                <li key={title} className='rp-clamp-2 text-xs leading-relaxed text-ink-2'>
+                  {title}
+                </li>
+              ))}
+              {moreTitles > 0
+                ? (
+                  <li className='text-xs text-ink-3'>
+                    and {moreTitles} more in the sources below
+                  </li>
+                )
+                : null}
+            </ul>
+          </div>
+        )
+        : null}
+
+      {quality && !plain
         ? (
           <div className='mt-3 rounded-[var(--rp-radius)] border border-line bg-surface-2 px-3 py-2.5'>
             {confidence.basis === 'audit'
@@ -614,7 +661,9 @@ export function AnswerQualityDisclosure(
             style={{ borderColor: 'var(--rp-warn-line)', background: 'var(--rp-warn-bg)' }}
           >
             <p className='text-xs leading-relaxed text-[var(--rp-warn-ink)]'>
-              This answer is thinly grounded - re-answer with full-document context?
+              {plain
+                ? 'Want a fuller answer? The portal can read the whole of each guide and try again.'
+                : 'This answer is thinly grounded - re-answer with full-document context?'}
             </p>
             <button
               type='button'
@@ -624,15 +673,18 @@ export function AnswerQualityDisclosure(
               }}
               className='rp-btn rp-btn-outline mt-2 h-8 px-3 text-xs'
             >
-              Re-answer deeply
+              {plain ? 'Read the full guides' : 'Re-answer deeply'}
             </button>
           </div>
         )
         : sparselyGrounded
         ? (
           <p className='mt-3 text-xs leading-relaxed text-[var(--rp-warn-ink)]'>
-            Parts of this answer go beyond the retrieved passages - open the retrieved sources below
-            to check it before relying on it.
+            {plain
+              ? 'Parts of this answer go beyond what the guides say - open the sources below ' +
+                'before repeating it.'
+              : 'Parts of this answer go beyond the retrieved passages - open the retrieved ' +
+                'sources below to check it before relying on it.'}
           </p>
         )
         : null}
@@ -651,7 +703,7 @@ export function AnswerQualityDisclosure(
           tabIndex={-1}
           role='dialog'
           aria-modal='true'
-          aria-label={`Answer quality: ${confidence.label}`}
+          aria-label={`Answer quality: ${label}`}
           onKeyDown={trapTab}
           style={{ '--rp-stage-i': 1 } as CSSProperties}
           className='rp-answer-tail absolute inset-x-0 bottom-0 max-h-[85vh] overflow-y-auto rounded-t-[var(--rp-radius)] border-t border-line bg-surface p-4 pb-[calc(1rem+env(safe-area-inset-bottom,0px))] shadow-lg outline-none'
@@ -679,7 +731,7 @@ export function AnswerQualityDisclosure(
         ref={panelRef}
         tabIndex={-1}
         role='dialog'
-        aria-label={`Answer quality: ${confidence.label}`}
+        aria-label={`Answer quality: ${label}`}
         onKeyDown={trapTab}
         className='rp-answer-tail absolute right-0 top-full z-30 mt-1.5 w-80 rounded-[var(--rp-radius)] border border-line bg-surface p-3.5 shadow-lg outline-none'
       >
@@ -701,8 +753,8 @@ export function AnswerQualityDisclosure(
         // Leads with the level, so a screen-reader user gets the same signal a
         // sighted one takes from the colour without opening anything - and, on
         // the loud states, starts with the visible label it repeats.
-        aria-label={`${confidence.label}. Answer quality details.`}
-        title={`${confidence.label} - answer quality`}
+        aria-label={`${label}. Answer quality details.`}
+        title={`${label} - answer quality`}
         className={`rp-focus flex h-9 shrink-0 items-center justify-center gap-1 rounded-[var(--rp-radius-btn)] transition-colors duration-150 ${
           labelled ? 'px-2 text-[0.6875rem] font-semibold' : 'w-9'
         } ${loud ? 'border' : 'text-ink-3 hover:bg-[var(--rp-surface-2)] hover:text-ink'}`}
@@ -715,7 +767,7 @@ export function AnswerQualityDisclosure(
           : undefined}
       >
         {glyph('lg')}
-        {labelled ? <span>{confidence.label}</span> : null}
+        {labelled ? <span>{label}</span> : null}
       </button>
       {open ? panel : null}
     </div>

@@ -123,6 +123,73 @@ export function auditConfidence(audit: AnswerAudit | undefined): ConfidenceState
   return 'low'
 }
 
+/**
+ * The confidence headline for a reader who is not a researcher (the portal's
+ * `answerRegister: 'plain'`): which guides back the answer, and whether to
+ * check before repeating it to a customer. Same underlying state as the
+ * research headline - this only changes the words and how loud they are -
+ * so a plain-register answer can never read as safer than its evidence.
+ */
+export interface PlainConfidence {
+  /** The trigger and panel headline, e.g. "Backed by 3 guides". */
+  label: string
+  /** One sentence under the headline. */
+  detail: string
+  tone: 'quiet' | 'warn' | 'bad'
+  /** Whether the adviser is told to check before promising it to a customer. */
+  check: boolean
+}
+
+export function plainConfidence(
+  confidence: Confidence,
+  citedGuides: number,
+  audit?: AnswerAudit,
+): PlainConfidence {
+  const guides = citedGuides === 1 ? '1 guide' : `${citedGuides} guides`
+  const uncited = typeof audit?.sentencesChecked === 'number' &&
+    typeof audit?.sentencesCited === 'number' && audit.sentencesCited < audit.sentencesChecked
+  switch (confidence.state) {
+    case 'high':
+      return {
+        label: citedGuides > 0 ? `Backed by ${guides}` : 'Checked against the guides',
+        detail: uncited
+          ? "The figures were found in the guides cited below. One line is the answer's own " +
+            'framing - fine to say, not something to quote as fact.'
+          : 'Every figure in this answer was found in the guides cited below. Safe to repeat ' +
+            'to the customer.',
+        tone: 'quiet',
+        check: false,
+      }
+    case 'moderate':
+      return {
+        label: citedGuides > 0 ? `Backed by ${guides} - check figures` : 'Check before quoting',
+        detail: 'The guides support the gist, but the portal could not tie every figure to a ' +
+          'page. Open the guide before quoting a number to the customer.',
+        tone: 'warn',
+        check: true,
+      }
+    case 'low':
+      return {
+        label: 'Check with the optometrist',
+        detail: citedGuides > 0
+          ? 'The guides only weakly support this answer. Treat it as a lead and check with the ' +
+            'optometrist before promising it to the customer.'
+          : 'No guide clearly backs this answer. Check with the optometrist before promising it ' +
+            'to the customer.',
+        tone: 'bad',
+        check: true,
+      }
+    default:
+      return {
+        label: citedGuides > 0 ? `Cites ${guides} - not checked` : 'Not checked',
+        detail: 'The automatic checks did not run for this answer. Read the cited guide before ' +
+          'repeating a figure.',
+        tone: 'warn',
+        check: true,
+      }
+  }
+}
+
 /** The order the states rank in, for "never higher than". */
 const RANK: Record<ConfidenceState, number> = { unscored: 0, low: 1, moderate: 2, high: 3 }
 

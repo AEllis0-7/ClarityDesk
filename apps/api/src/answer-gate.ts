@@ -447,6 +447,10 @@ export function assertsFinding(text: string): boolean {
   const trimmed = text.trim()
   if (trimmed.length < 25 || trimmed.endsWith(':')) return false
   if (trimmed.startsWith('*') || /^#{1,6}\s/.test(trimmed)) return false
+  // A question the answer poses, or the line a sales-floor prompt closes
+  // with ("Try asking: how much time do they spend on screens?"), is the
+  // portal talking to its reader, not a finding that needs a passage.
+  if (trimmed.endsWith('?') || /^(?:\*\*)?Try asking\b/i.test(trimmed)) return false
   if (isTableRow(trimmed)) return false
   if (/^\*\*[^*]+\*\*:?$/.test(trimmed)) return false
   // A sentence about what the sources do not say is the portal's own

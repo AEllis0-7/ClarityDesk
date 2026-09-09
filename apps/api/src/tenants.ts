@@ -308,6 +308,7 @@ const claritydesk: TenantConfig = TenantConfigSchema.parse({
     },
   },
   askPrompt: CLARITYDESK_ASK_PROMPT,
+  answerRegister: 'plain',
   analysis: {
     brief: 'The reader is an in-store eyewear adviser with no optical training, explaining a ' +
       'lens, coating or frame to a customer at the counter. Organise the topics by the ' +

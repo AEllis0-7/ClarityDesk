@@ -1037,6 +1037,7 @@ function AnswerCard({
   intents,
   onReroute,
   isAdmin = false,
+  register,
 }: {
   message: ChatMessage
   slug: string
@@ -1054,6 +1055,12 @@ function AnswerCard({
   onReroute: (intentId: string) => void
   /** Developer-facing widgets (pipeline, tokens) show only to administrators. */
   isAdmin?: boolean
+  /**
+   * The portal's answer register. In `plain` the figure-audit badge stays
+   * off the row and the quality control speaks in guides and "check before
+   * promising", not in scores.
+   */
+  register?: 'research' | 'plain'
 }) {
   const [showPipeline, setShowPipeline] = useState(false)
   const [compare, setCompare] = useState<[string, string] | null>(null)
@@ -1144,7 +1151,17 @@ function AnswerCard({
   // wall of raw passages under every answer.
   // "n cited" is the bound set: the resources a marker in the final text
   // actually points at, whether or not retrieval listed them.
-  const citedSourceCount = new Set(message.citations.map((citation) => citation.resourceId)).size
+  const citedSourceIds = new Set(message.citations.map((citation) => citation.resourceId))
+  const citedSourceCount = citedSourceIds.size
+  // The same bound set by title, in citation order, for the plain register's
+  // "backed by" panel - the listed source's title where retrieval listed it,
+  // the citation's own otherwise.
+  const titleById = new Map(message.sources.map((source) => [source.id, source.title]))
+  const citedTitles = [
+    ...new Set(
+      message.citations.map((citation) => titleById.get(citation.resourceId) ?? citation.title),
+    ),
+  ]
 
   // A refusal gets its own structured "no evidence" state instead of the
   // normal answer body - the guidance sentence the platform generated, what
@@ -1384,12 +1401,14 @@ function AnswerCard({
                   </button>
                 )
                 : null}
-              <AuditBadge audit={message.audit} />
+              {register !== 'plain' ? <AuditBadge audit={message.audit} /> : null}
               <AnswerQualityDisclosure
                 quality={message.quality}
                 audit={message.audit}
                 {...(offerDeepReanswer ? { onReanswerDeeply } : {})}
                 sparselyGrounded={isSparselyGrounded && evidenceSources.length > 0}
+                register={register}
+                citedTitles={citedTitles}
               />
               <CopyAnswer text={message.text} />
               {question.trim().length > 0
@@ -2899,6 +2918,7 @@ export function AskPage() {
                           key={message.id}
                           message={message}
                           slug={config.slug}
+                          register={config.answerRegister}
                           question={messages[index - 1]?.author === 'USER'
                             ? messages[index - 1]?.text ?? ''
                             : ''}
