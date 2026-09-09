@@ -1564,8 +1564,12 @@ label.rp-btn:has(input:focus-visible) {
   justify-content: center;
   gap: 0.5rem;
   height: calc(2.25rem * var(--rp-density-ctl, 1));
-  /* Pills need a touch more air at their rounded ends - the shape dial sets
-   * --rp-btn-px (see lib/theme.ts). */
+  /* A finger needs 44px, and 2.25rem is 36px at the default root. Every
+   * pointer that is not a mouse gets the floor: a shop tablet propped on a
+   * counter is the device this portal is used on most, and its Ask button
+   * was 37px. `min-height` rather than `height` so the density dial can
+   * still make a control TALLER, and a coarse-pointer query rather than a
+   * width breakpoint because a 1024px tablet is still touched. */
   padding: 0 var(--rp-btn-px, 0.875rem);
   border-radius: var(--rp-radius-btn);
   font-size: 0.875rem;
@@ -1577,6 +1581,15 @@ label.rp-btn:has(input:focus-visible) {
 .rp-btn:disabled {
   opacity: 0.55;
   cursor: not-allowed;
+}
+
+/* The touch floor, applied wherever the primary pointer is a finger. */
+@media (pointer: coarse) {
+  .rp-btn,
+  .rp-input,
+  .rp-chip {
+    min-height: 44px;
+  }
 }
 .rp-btn:focus-visible {
   outline: none;
@@ -2681,4 +2694,24 @@ button:disabled,
   .rp-navsheet-action {
     transition: none;
   }
+}
+
+/* Counter mode: a tablet propped on a shop counter, read standing up and
+ * touched rather than clicked. The text scale is applied on the root by
+ * lib/theme.ts; the geometry lives here, and applies whatever the browser
+ * reports about its pointer, because the device is known. */
+.rp-counter .rp-btn,
+.rp-counter .rp-input,
+.rp-counter .rp-chip,
+.rp-counter button,
+.rp-counter a[href] {
+  min-height: 44px;
+}
+
+/* Links inside running prose are words, not targets, and must not be
+ * stretched to 44px in the middle of a sentence. */
+.rp-counter p a[href],
+.rp-counter li a[href],
+.rp-counter .rp-prose a[href] {
+  min-height: 0;
 }

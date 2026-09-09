@@ -13,6 +13,8 @@ export interface TenantCopy {
   generateExample: (kind: GenerateKind) => string
   /** The line under the Ask heading before the first question is sent. */
   askIntro: string
+  /** What the empty ask box says. */
+  askPlaceholder: string
 }
 
 type CopySource = Pick<TenantConfig, 'suggestedQuestions' | 'topics'> & {
@@ -58,5 +60,6 @@ export function tenantCopy(config: CopySource): TenantCopy {
     generateExample: (kind) => custom.generateExamples?.[kind] ?? generateDefaults[kind],
     askIntro: custom.askIntro ??
       "Ask a question and get an answer grounded in this portal's research.",
+    askPlaceholder: custom.askPlaceholder ?? 'Ask a question about this research',
   }
 }

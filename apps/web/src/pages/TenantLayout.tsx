@@ -136,6 +136,16 @@ export function TenantLayout() {
   // chrome; the same portal in the back office is untouched. Read once per
   // navigation, so `?counter=1` applies the moment the link is followed.
   const counterMode = counterModeOn(location.search, globalThis.localStorage)
+  // The counter tablet carries the two destinations a shop adviser uses.
+  // Graph and Tools are research surfaces: on a counter they are shelf space
+  // spent on somewhere nobody goes, and a customer's route into the portal's
+  // machinery.
+  const navItems = counterMode
+    ? NAV_ITEMS.filter((item) => item.path === '/library' || item.path === '/ask')
+    : NAV_ITEMS
+  const mobileNavItems = counterMode
+    ? MOBILE_NAV_ITEMS.filter((item) => item.path === '/library' || item.path === '/ask')
+    : MOBILE_NAV_ITEMS
   const accountIsAdmin = auth?.user?.isAdmin === true
   const headerRef = useRef<HTMLElement | null>(null)
   const navPanelRef = useRef<HTMLElement | null>(null)
@@ -567,7 +577,7 @@ export function TenantLayout() {
               aria-label='Primary'
               className='rp-no-scrollbar flex min-w-0 items-center gap-0.5 overflow-x-auto whitespace-nowrap'
             >
-              {NAV_ITEMS.map((item) => (
+              {navItems.map((item) => (
                 <NavLink
                   key={item.label}
                   to={`/t/${config.slug}${item.path}`}
@@ -616,7 +626,7 @@ export function TenantLayout() {
             }}
           >
             <ul>
-              {MOBILE_NAV_ITEMS.map((item, index) => (
+              {mobileNavItems.map((item, index) => (
                 <li
                   key={item.label}
                   className={navOpen ? 'rp-navsheet-item' : 'rp-navsheet-item-exit'}

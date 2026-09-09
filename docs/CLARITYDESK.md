@@ -275,6 +275,24 @@ Fonts, the corners are 4px, and the header is white with the blue logo.
   mechanism, so it composes with whatever text size the tenant already chose, and spacing
   follows because the density dial is derived from rem.
 
+## Voice input and the counter's touch floor (9 September 2026)
+
+- **Dictation.** `DictateButton` sits in the counter home's ask field and the Ask composer. It
+  uses the browser's own speech recognition, declared in `lib/speech-input.ts` because the Web
+  Speech API is not in the DOM type library this project compiles against and is not in every
+  browser. It renders nothing where recognition is missing rather than offering a dead control.
+  One utterance per press, en-GB, interim words shown as they are revised, and the microphone is
+  released on unmount so a tablet is never left listening.
+- Platform error codes are translated to what the adviser should do ("The microphone is blocked
+  for this site ... or type the question instead"), never shown raw.
+- **A 44px touch floor.** `.rp-btn`, `.rp-input` and `.rp-chip` now floor at 44px under
+  `(pointer: coarse)`, and unconditionally inside `.rp-counter`. The portal's most-used control,
+  the counter home's Ask button, was 37px on a tablet.
+- **Counter mode trims the nav** to Library and Ask. Graph and Tools are research surfaces: on a
+  shop counter they are shelf space nobody uses and a customer's route into the machinery.
+- **The ask box speaks the shop's language.** `copy.askPlaceholder` replaces "Ask a question
+  about this research"; ClarityDesk says "Ask in the customer's words, or press the microphone".
+
 ## Next steps, in order
 
 1. **Confidence for non-experts - remaining.** The plain-register wording is a first pass; watch

@@ -362,6 +362,7 @@ const claritydesk: TenantConfig = TenantConfigSchema.parse({
   copy: {
     askIntro: "Ask in the customer's words. The answer comes from the guides and the " +
       'research behind them, in plain language.',
+    askPlaceholder: "Ask in the customer's words, or press the microphone",
     investigationExample: 'e.g. Which progressive lens suits a first-time wearer?',
     generateExamples: {
       comparison: 'e.g. Compare Zeiss SmartLife with Hoya progressive lenses',
