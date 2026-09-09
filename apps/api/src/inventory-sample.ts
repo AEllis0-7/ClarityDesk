@@ -37,3 +37,34 @@ export function sampleInventory<T>(
     inventory: sample.map(line).join('\n'),
   }
 }
+
+/**
+ * The same inventory, split into consecutive batches that each fit the
+ * budget. Where `sampleInventory` thins a corpus down to one prompt, this
+ * covers all of it across several - what the labelling pass needs, since a
+ * resource left out of a batch keeps no topic at all. Numbering restarts at
+ * 1 in every batch, so `line` is called with the index within the batch.
+ */
+export function chunkInventory<T>(
+  resources: readonly T[],
+  line: (resource: T, index: number) => string,
+  budget: number,
+): T[][] {
+  const batches: T[][] = []
+  let batch: T[] = []
+  let size = 0
+  for (const resource of resources) {
+    const cost = line(resource, batch.length).length + 1
+    // A single oversized resource still gets its own batch rather than
+    // being dropped; the platform truncates before it refuses the query.
+    if (batch.length > 0 && size + cost > budget) {
+      batches.push(batch)
+      batch = []
+      size = 0
+    }
+    batch.push(resource)
+    size += cost
+  }
+  if (batch.length > 0) batches.push(batch)
+  return batches
+}

@@ -1,7 +1,7 @@
 import type { AnalyseEvent, TenantConfig } from '@research-portal/core'
 import type { AragProvider } from '@research-portal/retrieval'
 import type { TenantStoreApi } from './tenants.ts'
-import { sampleInventory } from './inventory-sample.ts'
+import { chunkInventory, sampleInventory } from './inventory-sample.ts'
 
 /**
  * Corpus analysis: interrogate a knowledge box and derive its portal
@@ -65,6 +65,23 @@ const ANALYSE_SCHEMA = {
   },
 }
 
+/**
+ * The second pass: the taxonomy is already fixed, so a batch of resources
+ * only needs its assignments back.
+ */
+const ASSIGN_SCHEMA = {
+  name: 'resource_assignments',
+  description: 'Assign every listed resource to one topic and one kind from the given taxonomy',
+  parameters: {
+    type: 'object',
+    additionalProperties: false,
+    properties: {
+      assignments: ANALYSE_SCHEMA.parameters.properties.assignments,
+    },
+    required: ['assignments'],
+  },
+}
+
 interface AnalysisDesign {
   topics: { id: string; label: string; description?: string }[]
   kinds: { id: string; label: string; description?: string }[]
@@ -110,6 +127,74 @@ export function analysisPrompt(
     `of this corpus; (5) a short search placeholder listing 3 or 4 corpus ` +
     `themes, e.g. "Search x, y, z…". Use only ids you defined. Cover every resource number ` +
     `from 1 to ${corpus.sampleSize}.`
+}
+
+/**
+ * The labelling prompt for one batch of the corpus the design pass did not
+ * see. It restates the taxonomy - ids and the descriptions that qualify
+ * them - so a batch is classified the same way the sample was, and asks for
+ * nothing else.
+ */
+export function assignmentPrompt(
+  config: Pick<TenantConfig, 'analysis' | 'branding'>,
+  taxonomy: { topics: Labelled[]; kinds: Labelled[] },
+  batch: { count: number; inventory: string },
+): string {
+  const brief = config.analysis?.brief.trim()
+  const audience = brief
+    ? `You are classifying the corpus behind ${config.branding.productName}. ${brief}\n\n`
+    : ''
+  const list = (labels: Labelled[]) =>
+    labels.map((l) => `- ${l.id}: ${l.description ?? l.label}`).join('\n')
+  return audience +
+    `These are the portal's topics:\n${list(taxonomy.topics)}\n\n` +
+    `And its kinds:\n${list(taxonomy.kinds)}\n\n` +
+    `Here are ${batch.count} more resources from the same corpus:\n\n${batch.inventory}\n\n` +
+    `Assign every resource from 1 to ${batch.count} exactly one topicId and one kindId from ` +
+    `the lists above. Use only those ids - do not invent a topic or a kind, and choose the ` +
+    `closest fit where a resource sits between two.`
+}
+
+interface Labelled {
+  id: string
+  label: string
+  description?: string
+}
+
+/**
+ * Apply one pass of assignments to the box, skipping any that name a label
+ * outside the taxonomy. Ids that land are added to `labelled`, so the second
+ * pass can tell what the first already covered and the run reports a count
+ * of resources rather than of assignments.
+ */
+async function* applyAssignments(
+  management: AragProvider,
+  config: TenantConfig,
+  batch: readonly { id: string; title: string }[],
+  assignments: readonly { number: number; topicId: string; kindId: string }[],
+  taxonomy: { topicIds: Set<string>; kindIds: Set<string> },
+  labelled: Set<string>,
+): AsyncGenerator<AnalyseEvent> {
+  for (const assignment of assignments) {
+    const resource = batch[assignment.number - 1]
+    if (!resource) continue
+    const topicId = slugify(assignment.topicId)
+    const kindId = slugify(assignment.kindId)
+    if (!taxonomy.topicIds.has(topicId)) continue
+    const classifications = [{ labelset: 'topic', label: topicId }]
+    if (taxonomy.kindIds.has(kindId)) classifications.push({ labelset: 'kind', label: kindId })
+    try {
+      await management.patchResourceClassifications(config, resource.id, classifications)
+      labelled.add(resource.id)
+      yield { type: 'item', label: `Labelled: ${resource.title.slice(0, 60)}`, detail: topicId }
+    } catch (err) {
+      yield {
+        type: 'item',
+        label: `Could not label: ${resource.title.slice(0, 60)}`,
+        detail: err instanceof Error ? err.message.slice(0, 120) : 'failed',
+      }
+    }
+  }
 }
 
 export async function* analyseTenant(
@@ -211,37 +296,60 @@ export async function* analyseTenant(
     type: 'stage',
     label: sampled ? 'Labelling the sampled resources' : 'Labelling every resource',
   }
-  const topicIds = new Set(topics.map((t) => t.id))
-  const kindIds = new Set(kinds.map((k) => k.id))
-  let labelled = 0
-  for (const assignment of design.assignments ?? []) {
-    const resource = sample[assignment.number - 1]
-    if (!resource) continue
-    const topicId = slugify(assignment.topicId)
-    const kindId = slugify(assignment.kindId)
-    if (!topicIds.has(topicId)) continue
-    const classifications = [{ labelset: 'topic', label: topicId }]
-    if (kindIds.has(kindId)) classifications.push({ labelset: 'kind', label: kindId })
-    try {
-      await management.patchResourceClassifications(config, resource.id, classifications)
-      labelled += 1
-      yield { type: 'item', label: `Labelled: ${resource.title.slice(0, 60)}`, detail: topicId }
-    } catch (err) {
-      yield {
-        type: 'item',
-        label: `Could not label: ${resource.title.slice(0, 60)}`,
-        detail: err instanceof Error ? err.message.slice(0, 120) : 'failed',
+  const taxonomy = {
+    topicIds: new Set(topics.map((t) => t.id)),
+    kindIds: new Set(kinds.map((k) => k.id)),
+  }
+  const labelled = new Set<string>()
+  yield* applyAssignments(
+    management,
+    config,
+    sample,
+    design.assignments ?? [],
+    taxonomy,
+    labelled,
+  )
+
+  // The design prompt only ever sees a char-bounded sample, but a resource
+  // with no topic drops out of the portal's filters and its topic rows
+  // entirely. Label whatever the sample missed in further batches, against
+  // the taxonomy the design just fixed.
+  const remaining = resources.filter((r) => !labelled.has(r.id))
+  if (remaining.length > 0) {
+    yield {
+      type: 'stage',
+      label: `Labelling the remaining ${remaining.length} resources`,
+    }
+    const batches = chunkInventory(remaining, line, INVENTORY_BUDGET)
+    for (const [index, batch] of batches.entries()) {
+      const prompt = assignmentPrompt(config, { topics, kinds }, {
+        count: batch.length,
+        inventory: batch.map(line).join('\n'),
+      })
+      try {
+        const { object } = await management.askStructured(config, ASSIGN_SCHEMA, prompt)
+        const assignments = (object as Partial<AnalysisDesign>).assignments ?? []
+        yield* applyAssignments(management, config, batch, assignments, taxonomy, labelled)
+      } catch (err) {
+        // One failed batch should not cost the run the batches after it.
+        yield {
+          type: 'item',
+          label: `Could not label batch ${index + 1} of ${batches.length}`,
+          detail: err instanceof Error ? err.message.slice(0, 160) : 'request failed',
+        }
       }
     }
   }
 
-  if (sampled) {
-    yield {
-      type: 'item',
-      label: `Labelled ${labelled} sampled resources`,
-      detail:
-        `Taxonomy designed from a representative sample - run Enrichments to classify all ${resources.length}`,
-    }
+  const unlabelled = resources.length - labelled.size
+  yield {
+    type: 'item',
+    label: `Labelled ${labelled.size} of ${resources.length} resources`,
+    ...(unlabelled > 0
+      ? { detail: `${unlabelled} could not be labelled - run the analysis again to retry them` }
+      : sampled
+      ? { detail: 'Taxonomy designed from a representative sample, applied to the whole corpus' }
+      : {}),
   }
 
   yield { type: 'stage', label: 'Updating the portal configuration' }
@@ -271,7 +379,7 @@ export async function* analyseTenant(
     type: 'done',
     topics: topics.length,
     kinds: kinds.length,
-    labelled,
+    labelled: labelled.size,
     questions: questions.length,
   }
 }
