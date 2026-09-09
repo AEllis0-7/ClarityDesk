@@ -2,6 +2,7 @@ import { type FormEvent, useCallback, useMemo, useRef, useState } from 'react'
 import { useQueries, useQuery } from '@tanstack/react-query'
 import { Link, useNavigate, useOutletContext } from 'react-router-dom'
 import { familyKey } from '@research-portal/core'
+import { DictateButton } from '../components/DictateButton.tsx'
 import type { FacetCounts, ResourceSummary, TenantConfig } from '@research-portal/core'
 import { getCatalog, getFacets, getTopicResources } from '../api/client.ts'
 import { groupQuestionsByTopic } from '../lib/question-groups.ts'
@@ -145,6 +146,13 @@ function Hero({
                   onChange={(event) => setQuery(event.target.value)}
                   className='min-w-0 flex-1 border-0 bg-transparent px-2 py-2 text-[0.95rem] text-ink focus:outline-none'
                 />
+                {
+                  /* Dictation sits inside the field, before Ask: an adviser
+                  * holding a frame speaks the question rather than typing it
+                  * on a propped-up tablet. It renders nothing where the
+                  * browser has no speech recognition. */
+                }
+                <DictateButton value={query} onChange={setQuery} label='question' />
                 <button type='submit' className='rp-btn rp-btn-primary shrink-0 font-semibold'>
                   Ask
                 </button>

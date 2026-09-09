@@ -448,6 +448,12 @@ export const TenantConfigSchema = z.object({
     generateExamples: z.record(z.string(), z.string()).optional(),
     /** The line under the Ask heading before the first question is sent. */
     askIntro: z.string().min(1).optional(),
+    /**
+     * What the ask box says when it is empty. The default speaks of "this
+     * research", which is the wrong register for a portal whose reader is
+     * standing at a shop counter.
+     */
+    askPlaceholder: z.string().min(1).optional(),
   }).optional(),
   /**
    * The home page's shape. Absent means the research layout: an open

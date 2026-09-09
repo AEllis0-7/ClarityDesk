@@ -49,6 +49,7 @@ import { ExportNotice, LiveStatus, savedFileNotice, useExportNotice } from '../c
 import { useCompactViewport } from '../components/useViewMode.ts'
 import { isThinlyGrounded } from '../lib/confidence.ts'
 import { tenantCopy } from '../lib/tenant-copy.ts'
+import { DictateButton } from '../components/DictateButton.tsx'
 import {
   type AnswerAudit,
   auditBadge,
@@ -3149,9 +3150,15 @@ export function AskPage() {
                 onKeyDown={handleKeyDown}
                 disabled={isStreaming}
                 rows={1}
-                placeholder={isCompact ? undefined : 'Ask a question about this research'}
+                placeholder={isCompact ? undefined : tenantCopy(config).askPlaceholder}
                 className='max-h-40 min-w-0 flex-1 resize-none rounded-[var(--rp-radius)] border-0 bg-transparent px-2 py-2 text-sm text-ink placeholder:text-[var(--rp-ink-3)] focus:outline-none disabled:opacity-60 lg:px-3'
               />
+              {
+                /* Dictation, hidden while an answer is streaming for the same
+                * reason the field is disabled: there is nowhere for the words
+                * to go until this answer finishes. */
+              }
+              {!isStreaming && <DictateButton value={draft} onChange={setDraft} label='question' />}
               {isStreaming
                 ? (
                   <button
