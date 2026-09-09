@@ -11,6 +11,8 @@ export interface TenantCopy {
   investigationExample: string
   /** Placeholder for a Generate kind's brief. */
   generateExample: (kind: GenerateKind) => string
+  /** The line under the Ask heading before the first question is sent. */
+  askIntro: string
 }
 
 type CopySource = Pick<TenantConfig, 'suggestedQuestions' | 'topics'> & {
@@ -54,5 +56,7 @@ export function tenantCopy(config: CopySource): TenantCopy {
     investigationExample: custom.investigationExample ??
       (question ? `e.g. ${question}` : 'e.g. What does the evidence say about ...?'),
     generateExample: (kind) => custom.generateExamples?.[kind] ?? generateDefaults[kind],
+    askIntro: custom.askIntro ??
+      "Ask a question and get an answer grounded in this portal's research.",
   }
 }
