@@ -299,7 +299,60 @@ const claritydesk: TenantConfig = TenantConfigSchema.parse({
       { label: 'Transitions' },
       { label: 'Rodenstock' },
     ],
+    // Worded as the customer says them. Each one is answerable from the
+    // guides in the box (checked live on 9 September 2026); a pushback the
+    // guides cannot answer - price against online sellers, for one - is
+    // left out rather than handed to the model to improvise.
+    objections: [
+      { id: 'claritydesk-o1', text: 'Will progressive lenses give me headaches?' },
+      { id: 'claritydesk-o2', text: 'My old glasses were fine. Why would I need a coating?' },
+      {
+        id: 'claritydesk-o3',
+        text: "Won't blue light lenses make everything look yellow?",
+      },
+      { id: 'claritydesk-o4', text: 'Do light-adaptive lenses darken inside a car?' },
+      {
+        id: 'claritydesk-o5',
+        text: 'Do lenses for children really slow down short-sightedness?',
+      },
+      { id: 'claritydesk-o6', text: 'Are thinner lenses actually better, or just thinner?' },
+      { id: 'claritydesk-o7', text: 'Do I really need UV protection in clear lenses?' },
+      { id: 'claritydesk-o8', text: 'Do anti-reflective coatings scratch easily?' },
+    ],
   },
+  // The names a question can use for a product, coating or range. The router
+  // pins the guide a named product belongs to, and two names in one question
+  // make it a side-by-side comparison, so the list is every family and
+  // treatment the guides actually cover.
+  entityTerms: [
+    'SmartLife',
+    'SmartLife Individual',
+    'SmartLife Young',
+    'ClearView',
+    'DriveSafe',
+    'DuraVision',
+    'DuraVision Platinum',
+    'BlueGuard',
+    'PhotoFusion',
+    'PhotoFusion X',
+    'UVProtect',
+    'MyoCare',
+    'MyoEase',
+    'MyoActive',
+    'Varilux',
+    'Varilux XR',
+    'Crizal',
+    'Eyezen',
+    'Stellest',
+    'VisuPro',
+    'Hoyalux',
+    'Presio',
+    'Transitions',
+    'Transitions GEN 8',
+    'Transitions GEN S',
+    'Rodenstock',
+    'Shamir',
+  ],
   copy: {
     askIntro: "Ask in the customer's words. The answer comes from the makers' guides, in " +
       'plain language.',

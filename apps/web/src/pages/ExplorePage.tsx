@@ -252,6 +252,43 @@ function SituationGroups({
   )
 }
 
+/**
+ * The pushbacks. A customer's objection is a question in disguise, and the
+ * adviser needs the guides' answer to it faster than any other - so they
+ * get their own group, worded the way the customer says them.
+ */
+function ObjectionBand({
+  objections,
+  onAsk,
+}: {
+  objections: NonNullable<TenantConfig['home']>['objections']
+  onAsk: (text: string) => void
+}) {
+  if (!objections || objections.length === 0) return null
+  return (
+    <section className='rp-shell rp-anim-rise rp-delay-3 pt-12 sm:pt-16'>
+      <p className='rp-eyebrow text-ink-3'>When the customer pushes back</p>
+      <h2 className='rp-display mt-2 text-2xl text-ink sm:text-3xl'>
+        What the guides say to the usual objections
+      </h2>
+      <ul className='mt-6 grid gap-2.5 md:grid-cols-2 2xl:grid-cols-3'>
+        {objections.map((objection) => (
+          <li key={objection.id}>
+            <button
+              type='button'
+              onClick={() => onAsk(objection.text)}
+              className='rp-suggest-card h-full'
+            >
+              <span className='rp-suggest-text'>{objection.text}</span>
+              <span aria-hidden='true' className='rp-suggest-arrow'>&rarr;</span>
+            </button>
+          </li>
+        ))}
+      </ul>
+    </section>
+  )
+}
+
 /** Product families as one-tap searches - the names a customer walks in with. */
 function FamilyBand({
   slug,
@@ -654,6 +691,7 @@ export function ExplorePage() {
         ? (
           <>
             <SituationGroups config={config} facets={facets} onAsk={ask} />
+            <ObjectionBand objections={config.home?.objections} onAsk={ask} />
             <FamilyBand slug={config.slug} families={config.home?.families} />
           </>
         )
