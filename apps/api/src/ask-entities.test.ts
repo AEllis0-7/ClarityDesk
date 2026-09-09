@@ -67,6 +67,38 @@ describe('comparisonEntities', () => {
   it('does not treat a syndrome or a generic acronym as an entity', () => {
     expect(comparisonEntities('ILAE criteria for Lennox-Gastaut syndrome', LEXICON)).toEqual([])
   })
+
+  /** A product portal's lexicon: ranges and coatings, none of them drug-shaped. */
+  const RANGES = ['SmartLife', 'Varilux XR', 'DriveSafe', 'Crizal', 'Transitions']
+
+  it('finds no product range under the default medication rule', () => {
+    expect(comparisonEntities('Compare Varilux XR with SmartLife', RANGES)).toEqual([])
+  })
+
+  it('finds the ranges a question names when the portal compares its whole lexicon', () => {
+    expect(comparisonEntities('Compare Varilux XR with SmartLife', RANGES, 'lexicon')).toEqual([
+      'Varilux XR',
+      'SmartLife',
+    ])
+  })
+
+  it('answers in the order the reader asked, not the order the portal lists', () => {
+    // SmartLife is first in the lexicon and second in the question.
+    expect(comparisonEntities('Is Varilux XR better than SmartLife?', RANGES, 'lexicon')).toEqual([
+      'Varilux XR',
+      'SmartLife',
+    ])
+    expect(comparisonEntities('Is SmartLife better than Varilux XR?', RANGES, 'lexicon')).toEqual([
+      'SmartLife',
+      'Varilux XR',
+    ])
+  })
+
+  it('reads no study acronym into a product question', () => {
+    // 'GEN S' and 'UV' would otherwise be picked up as study names.
+    expect(comparisonEntities('Is UV protection in GEN S any good?', RANGES, 'lexicon'))
+      .toEqual([])
+  })
 })
 
 describe('entityQuery', () => {
@@ -234,5 +266,31 @@ describe('rankClosest', () => {
       'What is the incidence of epilepsy in Aboriginal and Torres Strait Islander Australians?',
     )
     expect(ranked.map((x) => x.id)).toEqual(['proj', 'tas', 'pte'])
+  })
+})
+
+describe('comparisonEntities with a nesting product lexicon', () => {
+  /** A real product lexicon nests: a family, and the sub-ranges under it. */
+  const NESTED = ['Varilux', 'Varilux XR', 'SmartLife', 'Crizal', 'Crizal Sapphire']
+
+  it('keeps the range the reader named, not the family inside it', () => {
+    expect(comparisonEntities('Compare Varilux XR with SmartLife', NESTED, 'lexicon')).toEqual([
+      'Varilux XR',
+      'SmartLife',
+    ])
+  })
+
+  it('keeps the family when that is all the question named', () => {
+    expect(comparisonEntities('Compare Varilux with SmartLife', NESTED, 'lexicon')).toEqual([
+      'Varilux',
+      'SmartLife',
+    ])
+  })
+
+  it('drops the nested term on both sides of a comparison', () => {
+    expect(comparisonEntities('Varilux XR versus Crizal Sapphire', NESTED, 'lexicon')).toEqual([
+      'Varilux XR',
+      'Crizal Sapphire',
+    ])
   })
 })
