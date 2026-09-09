@@ -38,11 +38,17 @@ describe('ClarityDesk tenant', () => {
     expect(config).toBeDefined()
     expect(store.isCustom('claritydesk')).toBe(false)
     // The ids are the `topic` labels on the box; no maker names in a label.
-    expect(config?.topics.length).toBe(8)
+    expect(config?.topics.length).toBe(7)
     for (const topic of config?.topics ?? []) {
       expect(topic.label).not.toMatch(/zeiss|hoya|essilor|nikon|transitions/i)
     }
     expect(config?.analysis?.keepQuestions).toBe(true)
+    // The counter home groups questions by topic, so every question names a real one.
+    expect(config?.home?.style).toBe('counter')
+    const topicIds = new Set(config?.topics.map((t) => t.id))
+    for (const question of config?.suggestedQuestions ?? []) {
+      expect(question.topicId && topicIds.has(question.topicId)).toBe(true)
+    }
     expect(config?.suggestedQuestions.length).toBeGreaterThanOrEqual(6)
     for (const question of config?.suggestedQuestions ?? []) {
       expect(question.text.endsWith('?')).toBe(true)

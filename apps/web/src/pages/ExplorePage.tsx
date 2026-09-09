@@ -1,8 +1,9 @@
 import { type FormEvent, useCallback, useMemo, useRef, useState } from 'react'
 import { useQueries, useQuery } from '@tanstack/react-query'
 import { Link, useNavigate, useOutletContext } from 'react-router-dom'
-import type { ResourceSummary, TenantConfig } from '@research-portal/core'
+import type { FacetCounts, ResourceSummary, TenantConfig } from '@research-portal/core'
 import { getCatalog, getFacets, getTopicResources } from '../api/client.ts'
+import { groupQuestionsByTopic } from '../lib/question-groups.ts'
 import { topicsWithFacetCounts } from '../lib/topic-rows.ts'
 import { EmptyState, ErrorCard, Skeleton, TypeBadge } from '../components/ui.tsx'
 import { ResourceThumb } from '../components/ResourceThumb.tsx'
@@ -52,16 +53,29 @@ function HeroBackdrop({ imageUrl }: { imageUrl?: string }) {
   )
 }
 
+/** The research hero's headline; the counter layout has its own default. */
+const RESEARCH_HEADING = 'What would you like to explore?'
+const COUNTER_HEADING = 'What does the customer want to know?'
+
 function Hero({
   config,
   onAsk,
+  counter = false,
 }: {
   config: TenantConfig
   /** The hero's own question path: submitting or picking a suggestion. */
   onAsk: (text: string) => void
+  /**
+   * The counter layout: a customer-facing headline and an optional lede, no
+   * suggestion chips (the questions are grouped by situation below) and no
+   * recent-documents rail (what landed last is not what the customer asked).
+   */
+  counter?: boolean
 }) {
   const [query, setQuery] = useState('')
   const inputRef = useRef<HTMLInputElement | null>(null)
+  const heading = counter ? config.home?.heading ?? COUNTER_HEADING : RESEARCH_HEADING
+  const lede = counter ? config.home?.lede : undefined
 
   function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
@@ -79,11 +93,22 @@ function Hero({
     <section className='relative isolate pb-24 pt-14 sm:px-6 sm:pb-28 sm:pt-20'>
       <HeroBackdrop imageUrl={config.branding.heroImageUrl} />
 
-      <div className='rp-shell grid items-center gap-10 lg:grid-cols-[minmax(0,1fr)_22rem] lg:gap-14'>
+      <div
+        className={counter
+          ? 'rp-shell grid items-center gap-10'
+          : 'rp-shell grid items-center gap-10 lg:grid-cols-[minmax(0,1fr)_22rem] lg:gap-14'}
+      >
         <div className='min-w-0'>
-          <h1 className='rp-display rp-anim-rise text-4xl text-[var(--rp-on-hero)] sm:text-5xl lg:text-6xl'>
-            What would you like to explore?
+          <h1 className='rp-display rp-anim-rise max-w-4xl text-4xl text-[var(--rp-on-hero)] sm:text-5xl lg:text-6xl'>
+            {heading}
           </h1>
+          {lede
+            ? (
+              <p className='rp-anim-rise rp-delay-1 mt-5 max-w-2xl text-base leading-relaxed text-[var(--rp-on-hero)]/80 sm:text-lg'>
+                {lede}
+              </p>
+            )
+            : null}
 
           <form onSubmit={handleSubmit} className='rp-anim-rise rp-delay-1 mt-8' role='search'>
             <label htmlFor='explore-search' className='sr-only'>
@@ -126,7 +151,7 @@ function Hero({
             </div>
           </form>
 
-          {config.suggestedQuestions.length > 0
+          {!counter && config.suggestedQuestions.length > 0
             ? (
               <div className='rp-anim-rise rp-delay-2 mt-4 flex max-w-2xl flex-wrap gap-2'>
                 {config.suggestedQuestions.slice(0, 3).map((question) => (
@@ -144,8 +169,120 @@ function Hero({
             : null}
         </div>
 
-        <RecentDocuments slug={config.slug} />
+        {!counter ? <RecentDocuments slug={config.slug} /> : null}
       </div>
+    </section>
+  )
+}
+
+/* -------------------------------------------------------------------------
+ * Counter layout - the shop-floor home
+ * ---------------------------------------------------------------------- */
+
+/**
+ * The suggested questions grouped by the topic each one names, so an adviser
+ * finds the customer's situation first and the question second. Each group
+ * carries the count of documents the box files under that topic, as the way
+ * through to the library for a reader who wants the guides themselves.
+ */
+function SituationGroups({
+  config,
+  facets,
+  onAsk,
+}: {
+  config: TenantConfig
+  facets: FacetCounts | undefined
+  onAsk: (text: string) => void
+}) {
+  const groups = useMemo(
+    () => groupQuestionsByTopic(config.suggestedQuestions, config.topics, facets ?? {}),
+    [config.suggestedQuestions, config.topics, facets],
+  )
+  if (groups.length === 0) return null
+
+  return (
+    <section className='rp-shell rp-anim-rise rp-delay-2 pt-12 sm:pt-16'>
+      <p className='rp-eyebrow text-ink-3'>Start from the customer's situation</p>
+      <h2 className='rp-display mt-2 text-2xl text-ink sm:text-3xl'>
+        Questions they ask at the counter
+      </h2>
+      {
+        /* Two columns from `md`, three on a large display: each group is a
+         * short stack of question cards, and a single column would make the
+         * page a long wall on anything wider than a phone. */
+      }
+      <div className='mt-8 grid gap-x-8 gap-y-10 md:grid-cols-2 2xl:grid-cols-3'>
+        {groups.map((group) => (
+          <div key={group.topic?.id ?? 'other'} className='min-w-0'>
+            <div className='flex items-center gap-2.5'>
+              <h3 className='rp-display min-w-0 break-words text-lg text-ink'>
+                {group.topic?.label ?? 'Anything else'}
+              </h3>
+              <span className='h-px flex-1 bg-[var(--rp-line)]' aria-hidden='true' />
+              {group.topic && group.count > 0
+                ? (
+                  <Link
+                    to={`/t/${config.slug}/library?topic=${encodeURIComponent(group.topic.id)}`}
+                    className='rp-focus -my-3 shrink-0 whitespace-nowrap rounded-[var(--rp-radius-btn)] py-3 text-sm font-medium tabular-nums text-ink-3 transition-colors duration-150 hover:text-ink'
+                  >
+                    {group.count} {group.count === 1 ? 'guide' : 'guides'}
+                    <span aria-hidden='true'>&rarr;</span>
+                  </Link>
+                )
+                : null}
+            </div>
+            <ul className='mt-3 space-y-2'>
+              {group.questions.map((question) => (
+                <li key={question.id}>
+                  <button
+                    type='button'
+                    onClick={() => onAsk(question.text)}
+                    className='rp-suggest-card'
+                  >
+                    <span className='rp-suggest-text'>{question.text}</span>
+                    <span aria-hidden='true' className='rp-suggest-arrow'>&rarr;</span>
+                  </button>
+                </li>
+              ))}
+            </ul>
+          </div>
+        ))}
+      </div>
+    </section>
+  )
+}
+
+/** Product families as one-tap searches - the names a customer walks in with. */
+function FamilyBand({
+  slug,
+  families,
+}: {
+  slug: string
+  families: NonNullable<TenantConfig['home']>['families']
+}) {
+  if (!families || families.length === 0) return null
+  return (
+    <section className='rp-shell rp-anim-rise rp-delay-3 pt-12 sm:pt-14'>
+      <p className='rp-eyebrow text-ink-3'>Look up a range by name</p>
+      {
+        /* On a phone the chips fill their wrap lines and clear 44px for a
+         * thumb; from `sm` they sit at natural width, as in the region band.
+         * Styled directly rather than with `rp-chip`: that component class
+         * sets its own min-height later in the stylesheet, so the 44px
+         * utility would lose and the target would stay 28px tall. */
+      }
+      <ul aria-label='Product families' className='mt-3 flex flex-wrap gap-2'>
+        {families.map((family) => (
+          <li key={family.label} className='grow sm:grow-0'>
+            <Link
+              to={`/t/${slug}/search?q=${encodeURIComponent(family.query ?? family.label)}`}
+              className='rp-focus inline-flex min-h-11 w-full items-center justify-center rounded-[var(--rp-radius-chip)] border border-line bg-surface px-3 py-1.5 text-sm font-medium text-ink-2 transition-colors duration-150 hover:bg-surface-2 hover:text-ink sm:min-h-0 sm:w-auto'
+            >
+              {family.label}
+            </Link>
+          </li>
+        ))}
+      </ul>
     </section>
   )
 }
@@ -507,15 +644,32 @@ export function ExplorePage() {
   // facets - never because a per-resource topicIds field came back empty.
   const hasRows = nonEmptyTopics.length > 0
 
+  const counter = config.home?.style === 'counter'
+
   return (
     <main>
-      <Hero config={config} onAsk={ask} />
+      <Hero config={config} onAsk={ask} counter={counter} />
 
-      <QuickEntry slug={config.slug} />
+      {counter
+        ? (
+          <>
+            <SituationGroups config={config} facets={facets} onAsk={ask} />
+            <FamilyBand slug={config.slug} families={config.home?.families} />
+          </>
+        )
+        : <QuickEntry slug={config.slug} />}
 
-      {config.regionalDiscovery !== false && <RegionBand slug={config.slug} />}
+      {!counter && config.regionalDiscovery !== false && <RegionBand slug={config.slug} />}
 
       <section className='rp-shell space-y-10 pb-16 pt-12'>
+        {counter && hasRows
+          ? (
+            <div>
+              <p className='rp-eyebrow text-ink-3'>Browse the guides</p>
+              <h2 className='rp-display mt-2 text-2xl text-ink sm:text-3xl'>By situation</h2>
+            </div>
+          )
+          : null}
         {isError
           ? (
             <ErrorCard

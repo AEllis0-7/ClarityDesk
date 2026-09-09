@@ -100,14 +100,29 @@ though it runs on one: every decision below follows from that reader.
   answers the question but was filed under single vision. Either merge the topic away or source
   a high-index material guide for it.
 
+## Counter home page (9 September 2026)
+
+- **The empty topic is folded.** "Thin and light lenses for strong prescriptions" is gone from
+  the tenant and from the box's `topic` labelset (the label was removed through Manage >
+  Taxonomy's route, and the single-vision definition now names thin, light and high-index
+  lenses). The analysis brief says the same, so a re-run will not recreate it. Seven topics.
+- **`home.style: 'counter'`** on `TenantConfig` switches the home page to the shop-floor
+  layout: a customer-facing headline ("What does the customer want to know?", overridable) with
+  a lede, the ask box, then the suggested questions grouped by the topic each names
+  (`Question.topicId`, new) with the box's document count per group as the link into the
+  library, then `home.families` as one-tap searches (Zeiss SmartLife, Essilor Crizal, ...), then
+  the existing topic rows under a "Browse the guides" heading. The research tiles, the recent
+  documents rail and the region band are not shown. Portals without `home` are unchanged.
+- `copy.askIntro` replaces the "grounded in this portal's research" line on Ask.
+- Ten questions now, each naming its topic; two new ones cover children's myopia and coating
+  care so every populated topic has at least one.
+- Windows note: the Tailwind standalone binary sometimes fails with `EEXIST` creating
+  `apps/web/dist` inside OneDrive; building the stylesheet to a temp path and copying it in
+  works, and `deno task dev`'s own start-up build is unaffected.
+
 ## Next steps, in order
 
-1. **Fill or fold the empty topic.** Source one or two high-index or lens-material guides, or
-   merge "thin and light" into "everyday single vision" and re-run analysis.
-2. **Sales-floor home page.** Replace the research hero ("What would you like to explore?") with a
-   counter-first layout: the ask box, the eight questions grouped by situation (new to
-   progressives, screen work, driving, strong prescription), and the product families in the box.
-3. **Confidence for non-experts.** Decide what the adviser should see instead of a REMi meter:
+1. **Confidence for non-experts.** Decide what the adviser should see instead of a REMi meter:
    probably "Backed by Zeiss and Hoya guides" with the source logos, and a quiet "check with the
    optometrist" line when the audit finds an uncited sentence.
 4. **Rotate the box token** and consider turning off anonymous reads on the box before the URL is

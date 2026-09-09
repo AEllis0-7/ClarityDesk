@@ -199,6 +199,12 @@ export const TopicSchema = z.object({
 export const QuestionSchema = z.object({
   id: z.string().min(1),
   text: z.string().min(1),
+  /**
+   * The configured topic this question sits under. A counter-style home page
+   * groups its questions by topic so a reader finds "their" situation first;
+   * a question without one is listed after the groups.
+   */
+  topicId: z.string().min(1).optional(),
 })
 
 export const EntityTypeSchema = z.object({
@@ -411,6 +417,28 @@ export const TenantConfigSchema = z.object({
     investigationExample: z.string().optional(),
     /** Placeholder per Generate kind (comparison, briefing, timeline, proscons, faq, assessment). */
     generateExamples: z.record(z.string(), z.string()).optional(),
+    /** The line under the Ask heading before the first question is sent. */
+    askIntro: z.string().min(1).optional(),
+  }).optional(),
+  /**
+   * The home page's shape. Absent means the research layout: an open
+   * "explore" hero, the four ways into the corpus, and topic rows. `counter`
+   * is the shop-floor layout: the ask box, the suggested questions grouped
+   * by topic so a reader finds the customer's situation first, product
+   * families as one-tap searches, then the topic rows.
+   */
+  home: z.object({
+    style: z.enum(['research', 'counter']),
+    /** The hero headline; the counter layout defaults to a customer-facing one. */
+    heading: z.string().min(1).optional(),
+    /** One line under the headline; absent means none. */
+    lede: z.string().min(1).optional(),
+    /** Product families the reader can search in one tap, e.g. a lens range. */
+    families: z.object({
+      label: z.string().min(1),
+      /** The search the chip runs; defaults to the label. */
+      query: z.string().min(1).optional(),
+    }).array().optional(),
   }).optional(),
   /** Extraction routing rules (docs/EXTRACTION-LAB.md). Absent = platform default for everything. */
   extraction: ExtractionRulesSchema.optional(),

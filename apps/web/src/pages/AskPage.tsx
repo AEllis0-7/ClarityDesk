@@ -48,6 +48,7 @@ import { AnswerQualityDisclosure, type QualityScores } from '../components/Quali
 import { ExportNotice, LiveStatus, savedFileNotice, useExportNotice } from '../components/ui.tsx'
 import { useCompactViewport } from '../components/useViewMode.ts'
 import { isThinlyGrounded } from '../lib/confidence.ts'
+import { tenantCopy } from '../lib/tenant-copy.ts'
 import {
   type AnswerAudit,
   auditBadge,
@@ -2837,7 +2838,7 @@ export function AskPage() {
                   <div className='mx-auto max-w-2xl text-center'>
                     <h1 className='rp-display text-3xl text-ink sm:text-4xl'>Ask</h1>
                     <p className='mt-2 text-sm leading-relaxed text-ink-2 sm:text-base'>
-                      Ask a question and get an answer grounded in this portal's research.
+                      {tenantCopy(config).askIntro}
                     </p>
                   </div>
                   {suggestions && suggestions.length > 0

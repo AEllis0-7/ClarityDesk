@@ -212,27 +212,60 @@ const claritydesk: TenantConfig = TenantConfigSchema.parse({
     { id: 'light-adaptive-sun-lenses', label: 'Light-adaptive and sun lenses' },
     { id: 'driving-screen-office', label: 'Driving, screen and office work' },
     { id: 'children-myopia-control', label: 'Children and myopia control' },
-    { id: 'thin-light-lenses', label: 'Thin and light lenses for strong prescriptions' },
     { id: 'lens-manufacturing', label: 'How lenses are made' },
   ],
+  // Each question names the topic it sits under on the counter home page.
   suggestedQuestions: [
     {
       id: 'claritydesk-q1',
       text: 'What is the difference between single vision and progressive lenses?',
+      topicId: 'progressive-multifocal-lenses',
     },
-    { id: 'claritydesk-q2', text: 'Do I really need an anti-reflective coating?' },
-    { id: 'claritydesk-q3', text: 'Which lenses are thinnest for a strong prescription?' },
+    {
+      id: 'claritydesk-q2',
+      text: 'Do I really need an anti-reflective coating?',
+      topicId: 'coatings-treatments',
+    },
+    {
+      id: 'claritydesk-q3',
+      text: 'Which lenses are thinnest for a strong prescription?',
+      topicId: 'single-vision-lenses',
+    },
     {
       id: 'claritydesk-q4',
       text: 'How long does it take to get used to progressive lenses?',
+      topicId: 'progressive-multifocal-lenses',
     },
     {
       id: 'claritydesk-q5',
       text: 'Are blue light lenses worth it if I work at a screen all day?',
+      topicId: 'driving-screen-office',
     },
-    { id: 'claritydesk-q6', text: 'What do light-adaptive (photochromic) lenses actually do?' },
-    { id: 'claritydesk-q7', text: 'What lenses are best for driving at night?' },
-    { id: 'claritydesk-q8', text: 'Why does a personalised lens cost more than a standard one?' },
+    {
+      id: 'claritydesk-q6',
+      text: 'What do light-adaptive (photochromic) lenses actually do?',
+      topicId: 'light-adaptive-sun-lenses',
+    },
+    {
+      id: 'claritydesk-q7',
+      text: 'What lenses are best for driving at night?',
+      topicId: 'driving-screen-office',
+    },
+    {
+      id: 'claritydesk-q8',
+      text: 'Why does a personalised lens cost more than a standard one?',
+      topicId: 'progressive-multifocal-lenses',
+    },
+    {
+      id: 'claritydesk-q9',
+      text: "My child's prescription keeps getting stronger. Can lenses slow that down?",
+      topicId: 'children-myopia-control',
+    },
+    {
+      id: 'claritydesk-q10',
+      text: 'Which coating is easiest to keep clean?',
+      topicId: 'coatings-treatments',
+    },
   ],
   entityTypes: [
     { id: 'lens-maker', label: 'Lens maker', colour: '#4fb3bf' },
@@ -243,7 +276,27 @@ const claritydesk: TenantConfig = TenantConfigSchema.parse({
   ],
   relationTypes: ['made-by', 'designed-for', 'uses', 'improves', 'competes-with'],
   regionalDiscovery: false,
+  home: {
+    style: 'counter',
+    lede: "Ask in the customer's own words. Every answer comes from the lens makers' " +
+      'guides, in plain language, with the guide it came from.',
+    families: [
+      { label: 'Zeiss SmartLife' },
+      { label: 'Zeiss DriveSafe' },
+      { label: 'Zeiss ClearView' },
+      { label: 'Zeiss MyoCare' },
+      { label: 'Essilor Varilux' },
+      { label: 'Essilor Crizal' },
+      { label: 'Essilor Stellest' },
+      { label: 'Hoya', query: 'Hoya lenses' },
+      { label: 'Nikon Presio' },
+      { label: 'Transitions' },
+      { label: 'Rodenstock' },
+    ],
+  },
   copy: {
+    askIntro: "Ask in the customer's words. The answer comes from the makers' guides, in " +
+      'plain language.',
     investigationExample: 'e.g. Which progressive lens suits a first-time wearer?',
     generateExamples: {
       comparison: 'e.g. Compare Zeiss SmartLife with Hoya progressive lenses',
@@ -259,10 +312,11 @@ const claritydesk: TenantConfig = TenantConfigSchema.parse({
     brief: 'The reader is an in-store eyewear adviser with no optical training, explaining a ' +
       'lens, coating or frame to a customer at the counter. Organise the topics by the ' +
       "customer's situation, never by maker or brand: for example progressive and multifocal " +
-      'lenses, everyday single vision lenses, coatings and treatments (anti-reflective, ' +
-      'scratch, UV), light-adaptive and sun lenses, driving, screen and office work, children ' +
-      'and myopia control, thin and light lenses for strong prescriptions, and background ' +
-      'reading on how lenses are made. A maker can appear in a description but not in a topic ' +
+      'lenses, everyday single vision lenses (including thin and light lenses for strong ' +
+      'prescriptions), coatings and treatments (anti-reflective, scratch, UV), light-adaptive ' +
+      'and sun lenses, driving, screen and office work, children and myopia control, and ' +
+      'background reading on how lenses are made. Only name a topic the corpus actually ' +
+      'holds documents for. A maker can appear in a description but not in a topic ' +
       'label. Kinds should say what a document is to a salesperson (product fact sheet, ' +
       "technical white paper, clinical study, buyer's guide, trade article). Every label " +
       'must be something a shop assistant would say aloud.',

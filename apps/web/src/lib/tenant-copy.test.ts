@@ -18,6 +18,15 @@ const neuro = {
 }
 
 describe('tenantCopy', () => {
+  it('uses the research Ask intro unless the portal writes its own', () => {
+    expect(tenantCopy(neuro).askIntro).toBe(
+      "Ask a question and get an answer grounded in this portal's research.",
+    )
+    expect(tenantCopy({ ...neuro, copy: { askIntro: 'Ask in their words.' } }).askIntro).toBe(
+      'Ask in their words.',
+    )
+  })
+
   it('derives every example from the portal itself - no other tenant leaks in', () => {
     const copy = tenantCopy(neuro)
     expect(copy.investigationExample).toBe(
