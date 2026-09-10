@@ -2,7 +2,7 @@ import { describe, it } from '@std/testing/bdd'
 import { expect } from '@std/expect'
 import type { AragProvider } from '@research-portal/retrieval'
 import type { AnalyseEvent, TenantConfig } from '@research-portal/core'
-import { analyseTenant, analysisPrompt, assignmentPrompt } from './analyse.ts'
+import { analyseTenant, analysisPrompt, assignmentPrompt, labelUntagged } from './analyse.ts'
 import { tenantConfig, TenantStore } from './tenants.ts'
 
 const corpus = {
@@ -249,5 +249,92 @@ describe('analyseTenant over a corpus larger than one prompt', () => {
     expect(
       events.some((e) => e.type === 'item' && /could not be labelled/.test(e.detail ?? '')),
     ).toBe(true)
+  })
+})
+
+/** Drain any event generator, for the passes that are not analyseTenant. */
+async function drain(gen: AsyncGenerator<AnalyseEvent>): Promise<AnalyseEvent[]> {
+  const events: AnalyseEvent[] = []
+  for await (const event of gen) events.push(event)
+  return events
+}
+
+describe('labelUntagged', () => {
+  const untagged = [
+    { id: 'u1', title: 'Blue light and sleep', summary: 'A trial.', topicIds: [] },
+    { id: 'u2', title: 'IPD measurement repeatability', summary: 'A method study.', topicIds: [] },
+  ]
+  const tagged = [
+    { id: 't1', title: 'Already filed', summary: 'x', topicIds: ['coatings-treatments'] },
+  ]
+
+  function stub(resources: unknown[], assignments?: unknown) {
+    const calls = { prompts: [] as string[], labelled: [] as string[] }
+    const management = {
+      listResources: () => Promise.resolve(resources),
+      askStructured: (_t: TenantConfig, _s: unknown, query: string) => {
+        calls.prompts.push(query)
+        return Promise.resolve({
+          object: {
+            assignments: assignments ?? [
+              { number: 1, topicId: 'screens-driving-glare', kindId: 'clinical-study' },
+              { number: 2, topicId: 'measurements-fit', kindId: 'clinical-study' },
+            ],
+          },
+        })
+      },
+      patchResourceClassifications: (_t: TenantConfig, id: string) => {
+        calls.labelled.push(id)
+        return Promise.resolve()
+      },
+    } as unknown as AragProvider
+    return { management, calls }
+  }
+
+  it("files the untagged under the portal's own topics and leaves the rest alone", async () => {
+    const config = tenantConfig('claritydesk')!
+    const { management, calls } = stub([...tagged, ...untagged])
+
+    const events = await drain(labelUntagged(management, config, ['clinical-study']))
+
+    expect(calls.labelled).toEqual(['u1', 'u2'])
+    expect(events.find((e) => e.type === 'done')).toMatchObject({ labelled: 2 })
+    // The taxonomy is the portal's, so no design call is made and no topic
+    // id is invented: the prompt names the ids already seeded.
+    expect(calls.prompts).toHaveLength(1)
+    expect(calls.prompts[0]).toContain('screens-driving-glare')
+    expect(calls.prompts[0]).not.toContain('Design the portal configuration')
+  })
+
+  it('does nothing when every resource already carries a topic', async () => {
+    const { management, calls } = stub(tagged)
+
+    const events = await drain(labelUntagged(management, tenantConfig('claritydesk')!))
+
+    expect(calls.prompts).toEqual([])
+    expect(calls.labelled).toEqual([])
+    expect(events.find((e) => e.type === 'done')).toMatchObject({ labelled: 0 })
+  })
+
+  it('refuses rather than inventing topics for a portal that has none', async () => {
+    const { management, calls } = stub(untagged)
+    const config = { ...tenantConfig('claritydesk')!, topics: [] }
+
+    const events = await drain(labelUntagged(management, config))
+
+    const error = events.find((e) => e.type === 'error')
+    expect(error?.type === 'error' && error.message).toMatch(/no topics/i)
+    expect(calls.labelled).toEqual([])
+  })
+
+  it('skips an assignment naming a topic the portal does not have', async () => {
+    const { management, calls } = stub(untagged, [
+      { number: 1, topicId: 'a-topic-nobody-defined', kindId: 'clinical-study' },
+      { number: 2, topicId: 'measurements-fit', kindId: 'clinical-study' },
+    ])
+
+    await drain(labelUntagged(management, tenantConfig('claritydesk')!))
+
+    expect(calls.labelled).toEqual(['u2'])
   })
 })
