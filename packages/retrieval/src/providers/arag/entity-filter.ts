@@ -27,13 +27,42 @@ const PERSON_NAME = new RegExp(
     String.raw`^[A-Z][\p{L}'’-]+(?:\s+[A-Z][\p{L}'’-]+)?,?\s+\(?(?:19|20)\d{2}\)?$`,
     String.raw`^(?:Dr|Prof|Professor|Mr|Mrs|Ms)\.?\s+[A-Z]`,
     String.raw`^[A-Z][\p{L}'’-]+,\s*(?:[A-Z]\.?\s*){1,3}$`,
+    // Initial-led with an "et al." tail: "A. Ballesteros-Sanchez et al.",
+    // "J.-M. Dupont et al." The surname-led pattern above anchors on a
+    // full first word, so an author cited initials-first slipped through.
+    String.raw`^(?:[A-Z]\.?\s*-?\s*){1,3}[A-Z][\p{L}'’-]+\s+et\s+al\.?,?(?:\s*\(?\d{4}\)?)?$`,
   ].join('|'),
   'u',
 )
 
-/** Journal and publisher names - the extraction reads reference lists too. */
+/**
+ * Journal and publisher names - the extraction reads reference lists too.
+ * The "... of ..." forms are matched anywhere in the string rather than only
+ * at its start: a title is as often "American Journal of Ophthalmology" or
+ * "British Journal of Ophthalmology" as it is "Journal of Vision", and
+ * anchoring on the first word missed every one that carries a country.
+ */
 const JOURNAL_NAME =
-  /^(?:frontiers in|journal of|annals of|archives of|proceedings of|the lancet|lancet|nature|science|cell|neuron|brain|epilepsia|epilepsy (?:research|& behavior|and behavior)|seizure|neurology|jama|bmj|nejm|new england journal|plos|elife|springer|elsevier|wiley|oxford university press|cambridge university press|cochrane)\b/i
+  /^(?:frontiers in|the lancet|lancet|nature|science|cell|neuron|brain|epilepsia|epilepsy (?:research|& behavior|and behavior)|seizure|neurology|jama|bmj|nejm|new england journal|plos|elife|springer|elsevier|wiley|oxford university press|cambridge university press|cochrane|acta\s+\p{L}+\.?$)|\b(?:journal|annals|archives|proceedings|review|reviews|bulletin)\s+of\b/iu
+
+/**
+ * An abbreviated journal title, which is how a reference list writes one:
+ * "Adv. Mater.", "Appl. Phys. A", "Ann Ophthalmol", "J. Opt. Soc. Am.",
+ * "Invest. Ophthalmol. Vis. Sci.". Two or more clipped words, at least one
+ * of them ending in a full stop, or a known clipped opener. The spelled-out
+ * titles are caught by JOURNAL_NAME; these never contain the word "journal"
+ * at all, so nothing above sees them.
+ */
+const ABBREVIATED_JOURNAL = new RegExp(
+  [
+    // At least two abbreviated words, one ending in a period: "Adv. Mater.".
+    String.raw`^(?:[A-Z][\p{L}]{1,11}\.\s*){2,}[A-Z]?[\p{L}]{0,11}\.?$`,
+    // A clipped opener that only ever starts a journal title.
+    String
+      .raw`^(?:J|Am|Br|Eur|Int|Ann|Arch|Acta|Adv|Appl|Clin|Exp|Invest|Ophthalmol|Optom|Vis|Sci|Proc|Rev|Res)\.?\s+[A-Z]`,
+  ].join('|'),
+  'u',
+)
 
 /** "26-year-old woman", "3 month old boy", "a 45-year-old". */
 const AGE_VIGNETTE = /\b\d+\s*[- ]?\s*(?:year|month|week|day)s?[- ]?old\b/i
@@ -68,6 +97,28 @@ const DOCUMENT_ARTEFACT =
   /^(?:supplementary\s+)?(?:table|figure|fig|pathway|appendix|section|chapter|panel|step|phase|group|cohort|arm)\s*[a-z]?\d+[a-z]?$/i
 
 /**
+ * A signed measurement: a prescription power ("+2.50 D", "−0.75", "+3.00
+ * Sph", "−0.79Δ"), a range of them ("−1.00 D to −6.00 D"), or a bare
+ * dioptre. These are the readings inside an optical paper, never a thing a
+ * portal names. They lead with a sign rather than a digit, so the digit-led
+ * table-cell rule above never sees them.
+ */
+const SIGNED_MEASUREMENT =
+  /^[≤≥<>]?\s?[+\-−–—±]\s?\d[\d.,]*\s*(?:d|dpt|sph|cyl|Δ|delta|diopters?|dioptres?|prism\s+diopters?|%|mm|cm|°)?(?:\s*(?:to|and|-|–|—)\s*[+\-−–—±]?\s?\d[\d.,]*\s*(?:d|dpt|sph|cyl|Δ|delta|diopters?|dioptres?|%|mm|cm|°)?)?$/i
+
+/**
+ * A duration or frequency that is the whole string: "25 seconds", "40 to 120
+ * min per day", "1 time/ wk". The count-or-dose rule handles the bare
+ * digit-plus-unit forms; these carry a range or a per-period tail.
+ *
+ * End-anchored on purpose. A string that runs on into a head noun - "24 hour
+ * ambulatory EEG", "12 month follow-up study" - names a real thing, and an
+ * unanchored version of this rule deleted it.
+ */
+const DURATION_OR_FREQUENCY =
+  /^\d[\d.,]*\s*(?:(?:to|-|–|—|and)\s*\d[\d.,]*\s*)?(?:s|sec|secs|second|seconds|min|mins|minute|minutes|h|hr|hrs|hour|hours|day|days|wk|wks|week|weeks|month|months|year|years|time|times)\b\s*(?:\/\s*|per\s+|a\s+|each\s+)?(?:s|sec|min|h|hr|hour|day|days|wk|week|weeks|month|months|year|years|daily|weekly|monthly)?\.?$/i
+
+/**
  * True when a string is not worth showing as an entity in any group.
  * Case-insensitive on the words; the "single letter" test uses the trimmed
  * length so "U" and "b" both go.
@@ -100,6 +151,9 @@ export function noiseReason(name: string): string | null {
     if (PERSON_NAME.test(rest) || JOURNAL_NAME.test(rest)) return 'numbered-citation'
     if (/^[A-Z][A-Z\s]+$/.test(rest)) return 'numbered-citation'
   }
+  if (ABBREVIATED_JOURNAL.test(t)) return 'abbreviated-journal'
+  if (SIGNED_MEASUREMENT.test(t)) return 'signed-measurement'
+  if (DURATION_OR_FREQUENCY.test(t)) return 'duration-or-frequency'
   if (AGE_VIGNETTE.test(t)) return 'age-vignette'
   if (VIGNETTE_SUBJECT.test(t)) return 'vignette-subject'
   if (DOCUMENT_ARTEFACT.test(t)) return 'document-artefact'
@@ -205,4 +259,45 @@ export function preferredSpelling(variants: readonly string[]): string {
     if (score(v) > score(best) || (score(v) === score(best) && v.length < best.length)) best = v
   }
   return best
+}
+
+/**
+ * How much an entity name reads as something the portal would name, used to
+ * order a group before it is truncated for display.
+ *
+ * The platform returns no frequency or salience with its entities, and the
+ * portal shows only the first hundred of each group. Sorted alphabetically
+ * that hundred is whatever starts with a digit or an "a" - on an optics
+ * corpus, "2D grating" and "accommodative lead" - while "Varilux XR series"
+ * and "Crizal Prevencia", the entities a reader came for, sort past the cut
+ * and are never seen. Ordering by this score first puts proper names in the
+ * visible hundred; ties stay alphabetical, so the order is still stable.
+ *
+ * This is a display heuristic, not a claim about importance. It cannot know
+ * that one lens range matters more than another - only that a capitalised
+ * two-word name is more likely to be a range than a lower-case measurement.
+ */
+export function entitySalience(name: string): number {
+  const t = name.trim()
+  if (!t) return 0
+  let score = 0
+  const words = t.split(/\s+/)
+  // A proper noun: at least one capitalised word that is not the whole
+  // string shouting.
+  const capitalised = words.filter((w) => /^\p{Lu}[\p{Ll}'’-]/u.test(w)).length
+  if (capitalised > 0) score += 3
+  // A brand reads as two or three words, not one and not a clause.
+  if (words.length >= 2 && words.length <= 4) score += 2
+  else if (words.length === 1) score += 1
+  // Digits inside a name are usually a measurement that survived the filter,
+  // though a model number ("Presio i", "GEN 8") is legitimate - so this is a
+  // demotion rather than a rejection.
+  if (/\d/.test(t)) score -= 2
+  // A trademark or registered mark is about as strong a signal of a product
+  // name as text carries.
+  if (/[™®©]/.test(t)) score += 2
+  // A clause, not a name.
+  if (words.length > 6) score -= 3
+  if (/[,;:()]/.test(t)) score -= 1
+  return score
 }

@@ -47,7 +47,13 @@ import { AragApiError, type KbBinding, KbClient, ndjson } from './client.ts'
 import { spliceCitationMarkers, stripInlineMarkers } from './citations.ts'
 import { dedupeResourceFamilies } from './resource-groups.ts'
 import { dedupeEntityCase } from './graph-relations.ts'
-import { dedupeNames, isNoiseEntity, keepEntity, preferredSpelling } from './entity-filter.ts'
+import {
+  dedupeNames,
+  entitySalience,
+  isNoiseEntity,
+  keepEntity,
+  preferredSpelling,
+} from './entity-filter.ts'
 import { rankSuggestedQuestions } from './suggest-ranking.ts'
 import {
   catalogFilterExpression,
@@ -995,7 +1001,14 @@ function cleanEntityNames(names: readonly string[], group: string): string[] {
   }
   return [...variants.values()]
     .map((list) => preferredSpelling(list))
-    .sort((a, b) => a.localeCompare(b, undefined, { sensitivity: 'base' }))
+    // Name-shaped entries first, alphabetical within a score. The caller
+    // shows only the first hundred of a group, and an alphabetical hundred
+    // on this corpus was "2D grating" and "accommodative lead" while
+    // "Varilux XR series" and "Crizal Prevencia" sorted past the cut.
+    .sort((a, b) =>
+      entitySalience(b) - entitySalience(a) ||
+      a.localeCompare(b, undefined, { sensitivity: 'base' })
+    )
 }
 
 /** The portal's content type for a resource, from the metadata the ingest stored. */

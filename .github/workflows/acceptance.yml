@@ -21,13 +21,21 @@ concurrency:
 jobs:
   sweep:
     name: Check live public endpoints
+    # Only meaningful against a deployment this repository owns. The same
+    # guard deploy.yml applies to its Cloudflare credentials: with nothing
+    # configured, skip quietly instead of failing on every schedule. A manual
+    # run is always allowed, so the check can be exercised deliberately.
+    if: vars.CORPUSKIT_BASE_URL != '' || github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     timeout-minutes: 10
     env:
       # A repository variable can move the scheduled check to renamed tenants
       # without changing this workflow. Manual runs can override it per run.
       ACCEPTANCE_TENANTS: ${{ inputs.tenant_slugs || vars.ACCEPTANCE_TENANTS || 'opax' }}
-      ACCEPTANCE_BASE_URL: https://corpuskit.org
+      # The site to check. A fork that has not deployed anything sets no
+      # CORPUSKIT_BASE_URL, and the job below skips rather than checking
+      # somebody else's production and failing every three hours.
+      ACCEPTANCE_BASE_URL: ${{ vars.CORPUSKIT_BASE_URL || 'https://corpuskit.org' }}
     steps:
       - uses: actions/checkout@v4
       - uses: denoland/setup-deno@v2

@@ -2,9 +2,11 @@ import { describe, it } from '@std/testing/bdd'
 import { expect } from '@std/expect'
 import {
   dedupeNames,
+  entitySalience,
   isGeneSymbolEntity,
   isNoiseEntity,
   keepEntity,
+  noiseReason,
   preferredSpelling,
 } from './entity-filter.ts'
 
@@ -146,5 +148,86 @@ describe('dedupeNames and preferredSpelling', () => {
     expect(preferredSpelling(['scn1a', 'SCN1A'])).toBe('SCN1A')
     expect(preferredSpelling(['kainic Acid', 'kainic acid'])).toBe('kainic acid')
     expect(preferredSpelling(['KAINIC ACID', 'kainic acid', 'Kainic acid'])).toBe('Kainic acid')
+  })
+})
+
+describe('optical-corpus noise', () => {
+  it('drops prescription powers and their ranges', () => {
+    for (
+      const t of ['+2.50 D', '−0.75', '+3.00 Sph', '−0.79Δ', '−1.00 D to −6.00 D', '≤−0.50 D']
+    ) {
+      expect(isNoiseEntity(t)).toBe(true)
+    }
+  })
+
+  it('drops durations and frequencies read off a method section', () => {
+    for (const t of ['25 seconds', '40 to 120 min per day', '1 time/ wk', '12 months']) {
+      expect(isNoiseEntity(t)).toBe(true)
+    }
+  })
+
+  it('keeps a duration that runs on into a real thing', () => {
+    for (const t of ['24 hour ambulatory EEG', '12 month follow-up study', '48 hours of wear']) {
+      expect(isNoiseEntity(t)).toBe(false)
+    }
+  })
+
+  it('drops an author cited initials-first', () => {
+    expect(noiseReason('A. Ballesteros-Sanchez et al.')).toBe('person')
+  })
+
+  it('drops an abbreviated journal title from a reference list', () => {
+    for (const t of ['Adv. Mater.', 'Appl. Phys. A', 'Ann Ophthalmol', 'J. Opt. Soc. Am.']) {
+      expect(isNoiseEntity(t)).toBe(true)
+    }
+  })
+
+  it('keeps a maker whose name merely looks clipped', () => {
+    for (const t of ['Shamir DUO™', 'ZEISS DuraVision', 'Hoya Vision Care']) {
+      expect(isNoiseEntity(t)).toBe(false)
+    }
+  })
+
+  it('drops a journal whose title carries a country', () => {
+    expect(noiseReason('American Journal of Ophthalmology')).toBe('journal')
+    expect(noiseReason('British Journal of Ophthalmology')).toBe('journal')
+    // Attributed to the abbreviation rule, which sees it first; what matters
+    // is that a reference-list title never reaches the map.
+    expect(isNoiseEntity('Acta Ophthalmol.')).toBe(true)
+  })
+
+  it('keeps the product entities a shop actually names', () => {
+    for (
+      const t of [
+        'Varilux XR series™',
+        'ZEISS SmartLife Progressive lenses',
+        'Crizal Prevencia',
+        'MyoCare',
+        'Polycarbonate',
+        'Trivex',
+        'presbyopia',
+        'night driving performance',
+        'GEN 8',
+      ]
+    ) {
+      expect(noiseReason(t)).toBe(null)
+    }
+  })
+})
+
+describe('entitySalience', () => {
+  it('ranks a product name above a lower-case measurement phrase', () => {
+    expect(entitySalience('Crizal Prevencia')).toBeGreaterThan(entitySalience('accommodative lead'))
+    expect(entitySalience('Varilux XR series™')).toBeGreaterThan(entitySalience('2D grating'))
+  })
+
+  it('ranks a trademarked brand above a bare capitalised word', () => {
+    expect(entitySalience('Crizal SunShield UV™')).toBeGreaterThan(entitySalience('Aberration'))
+  })
+
+  it('demotes a clause below a name', () => {
+    expect(entitySalience('ZEISS DuraVision')).toBeGreaterThan(
+      entitySalience('the impact of digitalisation on visual needs and behaviour'),
+    )
   })
 })
