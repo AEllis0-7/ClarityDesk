@@ -51,7 +51,7 @@ import {
   BRIEFING_RETRIEVAL_TOP_K,
   textCarriesQuote,
 } from './generate-sources.ts'
-import { analyseTenant } from './analyse.ts'
+import { analyseTenant, labelUntagged } from './analyse.ts'
 import { familyFor, generateExplainer } from './explainer.ts'
 import {
   type GraphStrategyInput,
@@ -2964,6 +2964,37 @@ export function buildApp(opts: BuildAppOptions): Hono {
     if (!config) return c.json({ error: 'unknown_tenant' }, 404)
     tenants.setDisabled(config.slug, false)
     return c.json({ ok: true })
+  })
+
+  // File the resources that carry no topic under the topics the portal
+  // already has. The analysis redesigns the taxonomy every time it runs,
+  // which is right once and wrong thereafter: a box that has merely grown
+  // does not need new topic ids, a seed to re-sync and its questions
+  // remapped. This is the cheap half - no design call, only the batches.
+  app.post('/api/admin/t/:slug/label-untagged', async (c) => {
+    const config = tenant(c.req.param('slug'))
+    if (!config) return c.json({ error: 'unknown_tenant' }, 404)
+    const unavailableLabel = requireManagement(c)
+    if (unavailableLabel) return unavailableLabel
+    // The kinds already on the box, so a newly filed resource joins the
+    // second dimension too rather than carrying a topic alone.
+    const kindIds = await management!.facets(config, ['kind'])
+      .then((counts) => Object.keys(counts.kind ?? {}))
+      .catch(() => [] as string[])
+    return streamSSE(c, async (stream) => {
+      try {
+        for await (const event of labelUntagged(management!, config, kindIds)) {
+          await stream.writeSSE({ data: JSON.stringify(event) })
+        }
+      } catch (err) {
+        await stream.writeSSE({
+          data: JSON.stringify({
+            type: 'error',
+            message: err instanceof Error ? err.message : 'labelling failed',
+          }),
+        })
+      }
+    })
   })
 
   app.post('/api/admin/t/:slug/analyse', (c) => {

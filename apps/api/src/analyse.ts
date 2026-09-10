@@ -383,3 +383,92 @@ export async function* analyseTenant(
     questions: questions.length,
   }
 }
+
+/**
+ * File the resources that carry no topic under the portal's EXISTING
+ * taxonomy, without redesigning it.
+ *
+ * `analyseTenant` always designs a taxonomy before it labels, which is right
+ * the first time and wrong every time after: a box that has simply grown
+ * does not need its topics reconsidered, and a redesign renames ids, breaks
+ * the seeded topic list and orphans every suggested question that names one.
+ * A portal whose corpus grows weekly needs the cheap half of that job on its
+ * own - no design call, only the assignment batches.
+ *
+ * Resources that already carry a topic are left exactly as they are.
+ */
+export async function* labelUntagged(
+  management: AragProvider,
+  config: TenantConfig,
+  kindIds: readonly string[] = [],
+): AsyncGenerator<AnalyseEvent> {
+  yield { type: 'stage', label: 'Reading the corpus' }
+  const resources = await management.listResources(config)
+  const untagged = resources.filter((r) => (r.topicIds ?? []).length === 0)
+  yield {
+    type: 'item',
+    label: `${untagged.length} of ${resources.length} resources carry no topic`,
+  }
+  if (untagged.length === 0) {
+    yield { type: 'done', topics: config.topics.length, kinds: 0, labelled: 0, questions: 0 }
+    return
+  }
+  if (config.topics.length === 0) {
+    yield {
+      type: 'error',
+      message: 'This portal has no topics to file them under - run the analysis first.',
+    }
+    return
+  }
+
+  const topics = config.topics.map((t) => ({
+    id: t.id,
+    label: t.label,
+    ...(t.description ? { description: t.description } : {}),
+  }))
+  const kinds = kindIds.map((id) => ({ id, label: id }))
+  const taxonomy = {
+    topicIds: new Set(topics.map((t) => t.id)),
+    kindIds: new Set(kinds.map((k) => k.id)),
+  }
+
+  yield { type: 'stage', label: `Filing them under the portal's ${topics.length} topics` }
+  const line = (r: { title: string; summary: string }, i: number) =>
+    `${i + 1}. ${r.title} - ${r.summary.slice(0, 180)}`
+  const batches = chunkInventory(untagged, line, 14_000)
+  const labelled = new Set<string>()
+  for (const [index, batch] of batches.entries()) {
+    const prompt = assignmentPrompt(config, { topics, kinds }, {
+      count: batch.length,
+      inventory: batch.map(line).join('\n'),
+    })
+    try {
+      const { object } = await management.askStructured(config, ASSIGN_SCHEMA, prompt)
+      const assignments = (object as Partial<AnalysisDesign>).assignments ?? []
+      yield* applyAssignments(management, config, batch, assignments, taxonomy, labelled)
+    } catch (err) {
+      // One failed batch should not cost the run the batches after it.
+      yield {
+        type: 'item',
+        label: `Could not label batch ${index + 1} of ${batches.length}`,
+        detail: err instanceof Error ? err.message.slice(0, 160) : 'request failed',
+      }
+    }
+  }
+
+  const missed = untagged.length - labelled.size
+  yield {
+    type: 'item',
+    label: `Filed ${labelled.size} of ${untagged.length}`,
+    ...(missed > 0
+      ? { detail: `${missed} still carry no topic - run this again to retry them` }
+      : {}),
+  }
+  yield {
+    type: 'done',
+    topics: topics.length,
+    kinds: kinds.length,
+    labelled: labelled.size,
+    questions: 0,
+  }
+}
